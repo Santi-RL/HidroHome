@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState, useCallback, type DragEvent as ReactDragEvent } from 'react';
+import { useMemo, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
 import { Box } from '@mantine/core';
-import { useElementSize } from '@mantine/hooks';
+import { useElementSize, useMergedRef } from '@mantine/hooks';
 import { Layer, Line, Rect, Stage, Text as KonvaText, Group as KonvaGroup } from 'react-konva';
 import { CATALOG_DRAG_DATA_KEY } from '../catalog/CatalogPanel';
 import { getCatalogItem } from '../../shared/constants/catalog';
@@ -27,6 +27,7 @@ const gridLines = (size: number, max: number): number[] => {
 export function EditorCanvas() {
   const { ref: measureRef, width, height } = useElementSize<HTMLDivElement>();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const mergedRef = useMergedRef<HTMLDivElement>(measureRef, containerRef);
   const network = useNetwork();
   const selection = useSelection();
   const activeTool = useActiveTool();
@@ -96,14 +97,9 @@ export function EditorCanvas() {
   const activeTemplate = activeLinkTemplateId ? getCatalogItem(activeLinkTemplateId) : undefined;
   const activeTemplateColor = activeTemplate?.color ?? '#2563eb';
 
-  const attachRef = useCallback((node: HTMLDivElement | null) => {
-    measureRef.current = node;
-    containerRef.current = node;
-  }, [measureRef]);
-
   return (
     <Box
-      ref={attachRef}
+      ref={mergedRef}
       style={{
         borderRadius: 8,
         border: '1px solid var(--mantine-color-gray-4)',
