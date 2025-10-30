@@ -172,7 +172,6 @@ export function App() {
         style={{
           width: navbarWidth,
           minWidth: navbarWidth,
-          position: 'relative',
           overflow: 'visible',
         }}
       >
