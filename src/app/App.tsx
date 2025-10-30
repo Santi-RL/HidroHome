@@ -1,18 +1,26 @@
 import { useEffect, useRef, useState, useCallback, type MouseEvent as ReactMouseEvent } from 'react';
 import {
+  ActionIcon,
   AppShell,
   Box,
   Button,
   FileButton,
   Group,
+  List,
+  Modal,
   ScrollArea,
   Select,
   Stack,
   Text,
   TextInput,
+  Title,
   rem,
 } from '@mantine/core';
-import { IconCloudDownload, IconDeviceFloppy } from '@tabler/icons-react';
+import {
+  IconCloudDownload,
+  IconDeviceFloppy,
+  IconQuestionMark,
+} from '@tabler/icons-react';
 import { CatalogPanel } from '../modules/catalog/CatalogPanel';
 import { EditorCanvas } from '../modules/editor/EditorCanvas';
 import { SelectionInspector } from '../modules/editor/SelectionInspector';
@@ -28,6 +36,7 @@ import { UNIT_SYSTEMS, type UnitSystemId } from '../shared/types/hydro';
 import { exportProjectFile, importProjectFile } from '../modules/storage/projectStorage';
 import { useAutosave } from '../modules/storage/useAutosave';
 import { notifications } from '@mantine/notifications';
+import { useDisclosure } from '@mantine/hooks';
 
 const unitOptions = Object.entries(UNIT_SYSTEMS).map(([id, config]) => ({
   value: id,
@@ -46,6 +55,7 @@ export function App() {
   const loadNetwork = useEditorStore((state) => state.loadNetwork);
   const markSaved = useEditorStore((state) => state.markSaved);
   const { recoverAutosave, currentVersion } = useAutosave();
+  const [isHelpOpen, { open: openHelp, close: closeHelp }] = useDisclosure(false);
 
   useEffect(() => {
     void recoverAutosave();
@@ -129,6 +139,110 @@ export function App() {
       aside={{ width: 320, breakpoint: 'lg' }}
       padding="md"
     >
+      <Modal
+        opened={isHelpOpen}
+        onClose={closeHelp}
+        title="Ayuda de HidroHome"
+        size="xl"
+        scrollAreaComponent={ScrollArea.Autosize}
+      >
+        <Stack gap="md">
+          <Text>
+            Esta guía te acompaña paso a paso para crear y simular un proyecto en HidroHome,
+            incluso si es la primera vez que usas la aplicación.
+          </Text>
+
+          <div>
+            <Title order={4}>1. Crear tu red</Title>
+            <List spacing="xs" withPadding>
+              <List.Item>
+                Abre el panel «Catálogo» y arrastra los componentes (nodos, tuberías, bombas, etc.)
+                hacia el lienzo central.
+              </List.Item>
+              <List.Item>
+                Usa el cursor para posicionar cada elemento. Puedes moverlos en cualquier momento
+                seleccionándolos y arrastrándolos.
+              </List.Item>
+            </List>
+          </div>
+
+          <div>
+            <Title order={4}>2. Conectar elementos</Title>
+            <List spacing="xs" withPadding>
+              <List.Item>
+                Selecciona un elemento con puntos de conexión y arrastra desde un nodo de salida
+                hacia el elemento destino para crear la tubería o la relación adecuada.
+              </List.Item>
+              <List.Item>
+                Ajusta las propiedades de cada conexión en el panel derecho, dentro de
+                «Inspector de selección».
+              </List.Item>
+            </List>
+          </div>
+
+          <div>
+            <Title order={4}>3. Configurar propiedades</Title>
+            <List spacing="xs" withPadding>
+              <List.Item>
+                Haz clic en un componente del lienzo para ver sus atributos principales en el
+                inspector. Allí podrás modificar parámetros como diámetros, longitudes, demandas y
+                niveles.
+              </List.Item>
+              <List.Item>
+                Cambia el sistema de unidades desde el selector de la barra superior si lo
+                necesitas antes de ajustar los valores.
+              </List.Item>
+            </List>
+          </div>
+
+          <div>
+            <Title order={4}>4. Visualizaciones 2D y 3D</Title>
+            <List spacing="xs" withPadding>
+              <List.Item>
+                El editor principal muestra tu diseño en 2D. Usa la rueda del mouse para hacer zoom
+                y mantén presionado el botón derecho para desplazar la vista.
+              </List.Item>
+              <List.Item>
+                En la parte inferior encontrarás el visor 3D. Interactúa con él arrastrando para
+                orbitar, haciendo zoom con la rueda y usando clic derecho para desplazar.
+              </List.Item>
+            </List>
+          </div>
+
+          <div>
+            <Title order={4}>5. Simular el sistema</Title>
+            <List spacing="xs" withPadding>
+              <List.Item>
+                Ve al panel «Simulación» y revisa que los parámetros iniciales sean correctos.
+              </List.Item>
+              <List.Item>
+                Presiona «Ejecutar simulación» para obtener resultados hidráulicos. Los mensajes y
+                gráficos aparecerán en este mismo panel.
+              </List.Item>
+            </List>
+          </div>
+
+          <div>
+            <Title order={4}>6. Guardar y compartir</Title>
+            <List spacing="xs" withPadding>
+              <List.Item>
+                Utiliza «Exportar» para descargar un archivo con tu proyecto y «Importar» para abrir
+                proyectos existentes.
+              </List.Item>
+              <List.Item>
+                El indicador «mod» junto al nombre del proyecto te recuerda cuándo hay cambios sin
+                guardar.
+              </List.Item>
+            </List>
+          </div>
+
+          <Text>
+            ¿Necesitas más ayuda? Revisa la documentación del equipo o contacta al soporte
+            compartiendo el archivo exportado y una breve descripción de tu objetivo.
+          </Text>
+        </Stack>
+      </Modal>
+
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group gap="sm">
@@ -163,6 +277,15 @@ export function App() {
             <Button onClick={handleExport} leftSection={<IconDeviceFloppy size={16} />}>
               Exportar
             </Button>
+            <ActionIcon
+              variant="light"
+              color="blue"
+              size="lg"
+              onClick={openHelp}
+              aria-label="Abrir ayuda de HidroHome"
+            >
+              <IconQuestionMark size={20} />
+            </ActionIcon>
           </Group>
         </Group>
       </AppShell.Header>
