@@ -1,4 +1,4 @@
-import { Button, Group, Loader, Stack, Table, Text } from '@mantine/core';
+import { Alert, Button, Group, Loader, Stack, Table, Text } from '@mantine/core';
 import { IconPlayerPlay } from '@tabler/icons-react';
 import { useSimulationState } from '../../shared/state/editorStore';
 import { useSimulationRunner } from './useSimulationRunner';
@@ -29,9 +29,31 @@ export function SimulationPanel() {
         Ejecutar simulacion
       </Button>
       {simulation.status === 'error' && simulation.error && (
-        <Text c="red" size="sm">
-          {simulation.error}
-        </Text>
+        <Stack gap="xs">
+          {simulation.error.map((detail, index) => (
+            <Alert
+              key={detail.code ?? index}
+              color="red"
+              title={detail.title}
+              variant="light"
+            >
+              <Stack gap={4}>
+                <Text size="sm">
+                  <Text span fw={600}>
+                    Error:
+                  </Text>{' '}
+                  {detail.description}
+                </Text>
+                <Text size="sm">
+                  <Text span fw={600}>
+                    Solución:
+                  </Text>{' '}
+                  {detail.solution}
+                </Text>
+              </Stack>
+            </Alert>
+          ))}
+        </Stack>
       )}
       {simulation.results && (
         <Stack gap="xs">

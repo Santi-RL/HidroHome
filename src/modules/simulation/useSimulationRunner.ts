@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef } from 'react';
 import { notifications } from '@mantine/notifications';
 import { useEditorStore } from '../../shared/state/editorStore';
 import type { SimulationResults } from '../../shared/types/hydro';
+import { mapWorkerErrorToDetails } from './simulationErrors';
+import { validateNetworkForSimulation } from './networkValidation';
 
 type WorkerMessage =
   | { type: 'success'; payload: SimulationResults }
@@ -36,14 +38,14 @@ export const useSimulationRunner = () => {
           message: 'Los resultados se actualizaron correctamente.',
         });
       } else if (data.type === 'error') {
-        const error = new Error(data.error);
-        setError(data.error);
-        setStatus('error');
-        pendingPromise.current?.reject(error);
+        const details = mapWorkerErrorToDetails(data.error);
+        const summary = details.map((detail) => detail.title).join(' · ');
+        setError(details);
+        pendingPromise.current?.reject(new Error(summary));
         pendingPromise.current = null;
         notifications.show({
           title: 'No se pudo simular',
-          message: data.error,
+          message: details[0]?.description ?? data.error,
           color: 'red',
         });
       }
@@ -51,14 +53,14 @@ export const useSimulationRunner = () => {
 
     const handleError = (errorEvent: ErrorEvent) => {
       const message = errorEvent.message || 'Fallo inesperado en el simulador.';
-      setError(message);
-      setStatus('error');
-      const error = new Error(message);
-      pendingPromise.current?.reject(error);
+      const details = mapWorkerErrorToDetails(message);
+      const summary = details.map((detail) => detail.title).join(' · ');
+      setError(details);
+      pendingPromise.current?.reject(new Error(summary));
       pendingPromise.current = null;
       notifications.show({
         title: 'Error en simulador',
-        message,
+        message: details[0]?.description ?? message,
         color: 'red',
       });
     };
@@ -83,11 +85,16 @@ export const useSimulationRunner = () => {
       }
 
       const state = useEditorStore.getState();
-      if (state.network.nodes.length === 0) {
-        const error = new Error('Agrega nodos y conexiones antes de simular.');
-        reject(error);
-        setError(error.message);
-        setStatus('error');
+      const validationIssues = validateNetworkForSimulation(state.network);
+      if (validationIssues.length > 0) {
+        const summary = validationIssues.map((detail) => detail.title).join(' · ');
+        setError(validationIssues);
+        notifications.show({
+          title: 'No se pudo simular',
+          message: validationIssues[0]?.description ?? 'La red necesita correcciones antes de simular.',
+          color: 'red',
+        });
+        reject(new Error(summary));
         return;
       }
 

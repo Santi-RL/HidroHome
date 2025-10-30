@@ -8,6 +8,7 @@ import type {
   SimulationResults,
   UnitSystemId,
 } from '../types/hydro';
+import type { SimulationErrorDetail } from '../types/simulation';
 import type { Vec2 } from '../types/math';
 import { distanceVec2 } from '../types/math';
 import { createLinkId, createNodeId } from '../utils/id';
@@ -22,7 +23,7 @@ type Selection =
 interface SimulationState {
   status: 'idle' | 'running' | 'success' | 'error';
   results?: SimulationResults;
-  error?: string;
+  error?: SimulationErrorDetail[];
 }
 
 interface EditorState {
@@ -52,7 +53,7 @@ interface EditorState {
   loadNetwork: (network: HydroNetwork) => void;
   setSimulationStatus: (status: SimulationState['status']) => void;
   setSimulationResults: (results: SimulationResults) => void;
-  setSimulationError: (message: string) => void;
+  setSimulationError: (details: SimulationErrorDetail[] | SimulationErrorDetail) => void;
   resetSimulation: () => void;
   markSaved: () => void;
 }
@@ -302,23 +303,33 @@ export const useEditorStore = create<EditorState>()(
           simulation: { status: 'idle' },
         }),
 
-      setSimulationStatus: (status) => set((state) => ({ simulation: { ...state.simulation, status } })),
+      setSimulationStatus: (status) =>
+        set((state) => ({
+          simulation: {
+            ...state.simulation,
+            status,
+            ...(status !== 'error' ? { error: undefined } : {}),
+          },
+        })),
 
       setSimulationResults: (results) =>
         set({
           simulation: {
             status: 'success',
             results,
+            error: undefined,
           },
         }),
 
-      setSimulationError: (message) =>
+      setSimulationError: (details) => {
+        const normalized = Array.isArray(details) ? details : [details];
         set({
           simulation: {
             status: 'error',
-            error: message,
+            error: normalized,
           },
-        }),
+        });
+      },
 
       resetSimulation: () => set({ simulation: { status: 'idle' } }),
 
