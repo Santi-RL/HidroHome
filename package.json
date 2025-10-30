@@ -1,0 +1,42 @@
+{
+  "name": "hidrohome",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.38.0",
+    "@types/node": "^24.9.2",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@types/three": "^0.180.0",
+    "eslint": "^9.38.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.7"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mantine/core": "^8.3.6",
+    "@mantine/hooks": "^8.3.6",
+    "@mantine/notifications": "^8.3.6",
+    "@tabler/icons-react": "^3.35.0",
+    "epanet-js": "^0.7.0",
+    "idb-keyval": "^6.2.2",
+    "konva": "^10.0.8",
+    "nanoid": "^5.1.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-konva": "^19.2.0",
+    "three": "^0.180.0",
+    "zod": "^4.1.12",
+    "zustand": "^5.0.8"
+  }
+}
