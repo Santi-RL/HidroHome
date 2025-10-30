@@ -58,12 +58,16 @@ const buildTanks = (nodes: HydroNode[]) => {
   const lines = ['[TANKS]'];
   tanks.forEach((node) => {
     const tank = node.tank!;
-    lines.push(
-      `${node.id} ${formatNumber(node.elevation, 3)} ${formatNumber(tank.initLevel, 3)} ${formatNumber(
-        tank.minLevel,
-        3,
-      )} ${formatNumber(tank.maxLevel, 3)} ${formatNumber(tank.diameter, 3)} 0`,
-    );
+    const tankLine = [
+      node.id,
+      formatNumber(node.elevation, 3),
+      formatNumber(tank.initLevel, 3),
+      formatNumber(tank.minLevel, 3),
+      formatNumber(tank.maxLevel, 3),
+      formatNumber(tank.diameter, 3),
+    ].join(' ');
+
+    lines.push(tankLine);
   });
   lines.push('');
   return lines.join('\n');
