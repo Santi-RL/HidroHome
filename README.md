@@ -61,6 +61,22 @@ Los proyectos se guardan como JSON con estructura:
 
 Puedes versionar estos archivos o compartirlos entre equipos para continuar el trabajo.
 
+### Configuración mínima de prueba
+
+Para verificar que el motor de simulación funciona con los elementos básicos, puedes importar el archivo
+[`examples/minimal-network.json`](examples/minimal-network.json). Esta red contiene:
+
+- Un **reservorio** con altura de carga inicial de 10 m.
+- Un **tanque elevado** con niveles mínimo/máximo válidos y diámetro positivo.
+- Una **ducha** como punto de consumo con demanda base configurada.
+- Dos tramos de **cañería PVC de 25 mm** que unen el reservorio con el tanque y el tanque con la ducha.
+
+Sigue estos pasos para probarla:
+
+1. Abre la aplicación y ve al menú de importar proyecto.
+2. Selecciona el archivo `minimal-network.json` ubicado en la carpeta `examples/`.
+3. Ejecuta la simulación; si la red se importó correctamente, EPANET debería correr sin mostrar errores de datos incompletos.
+
 ## Limitaciones del MVP
 
 - No hay control de colisiones, snaps ni rejilla inteligente avanzada.

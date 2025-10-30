@@ -1,0 +1,76 @@
+{
+  "version": "1.0.0",
+  "network": {
+    "id": "network_minimo",
+    "name": "Red de prueba mínima",
+    "description": "Reservorio alimentando tanque elevado y ducha mediante caños PVC de 25 mm.",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z",
+    "units": "ar",
+    "nodes": [
+      {
+        "id": "reservorio_fuente",
+        "label": "Reservorio",
+        "type": "reservoir",
+        "position": { "x": 0, "y": 0 },
+        "elevation": 0,
+        "baseDemand": 0,
+        "reservoir": { "head": 10 },
+        "deviceId": "source_reservoir"
+      },
+      {
+        "id": "tanque_elevado",
+        "label": "Tanque elevado",
+        "type": "tank",
+        "position": { "x": 200, "y": 0 },
+        "elevation": 5,
+        "baseDemand": 0,
+        "tank": {
+          "minLevel": 0,
+          "maxLevel": 2,
+          "initLevel": 1,
+          "diameter": 1.5
+        },
+        "deviceId": "storage_tank"
+      },
+      {
+        "id": "ducha_principal",
+        "label": "Ducha",
+        "type": "fixture",
+        "position": { "x": 400, "y": 0 },
+        "elevation": 0,
+        "baseDemand": 0.0003,
+        "deviceId": "fixture_shower"
+      }
+    ],
+    "links": [
+      {
+        "id": "pipe_reservorio_tanque",
+        "type": "pipe",
+        "from": "reservorio_fuente",
+        "to": "tanque_elevado",
+        "length": 5,
+        "diameter": 25,
+        "roughness": 145,
+        "minorLoss": 0,
+        "status": "OPEN",
+        "deviceId": "pipe_pvc_25"
+      },
+      {
+        "id": "pipe_tanque_ducha",
+        "type": "pipe",
+        "from": "tanque_elevado",
+        "to": "ducha_principal",
+        "length": 8,
+        "diameter": 25,
+        "roughness": 145,
+        "minorLoss": 0,
+        "status": "OPEN",
+        "deviceId": "pipe_pvc_25"
+      }
+    ]
+  },
+  "preferences": {
+    "unitSystem": "ar"
+  }
+}
