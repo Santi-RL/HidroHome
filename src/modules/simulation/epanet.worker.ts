@@ -21,6 +21,10 @@ interface WorkerSuccessResponse {
 interface WorkerErrorResponse {
   type: 'error';
   error: string;
+  details?: {
+    inpContent?: string;
+    reportContent?: string;
+  };
 }
 
 const ctx: Worker = self as unknown as Worker;
@@ -31,8 +35,25 @@ const runSimulation = (network: HydroNetwork): SimulationResults => {
 
   const inpContent = buildInpFromNetwork(network);
   workspace.writeFile('network.inp', inpContent);
-  project.open('network.inp', 'report.rpt', 'out.bin');
-  project.solveH();
+  
+  try {
+    project.open('network.inp', 'report.rpt', 'out.bin');
+    project.solveH();
+  } catch (error) {
+    // Intentar leer el reporte para obtener más detalles en caso de error
+    let reportContent = '';
+    try {
+      reportContent = workspace.readFile('report.rpt');
+      console.error('=== EPANET REPORT ===');
+      console.error(reportContent);
+      console.error('=== END REPORT ===');
+    } catch (e) {
+      // Ignorar si no se puede leer el reporte
+    }
+    
+    project.close();
+    throw new Error(`Error EPANET: ${error instanceof Error ? error.message : String(error)}`);
+  }
 
   const nodeResults = network.nodes.map((node) => {
     const index = project.getNodeIndex(node.id);
@@ -86,7 +107,11 @@ ctx.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
   const { data } = event;
   if (data.type !== 'run') return;
 
+  const workspace = new Workspace();
+  let inpContent = '';
+  
   try {
+    inpContent = buildInpFromNetwork(data.payload.network);
     const results = runSimulation(data.payload.network);
     const response: WorkerSuccessResponse = {
       type: 'success',
@@ -95,9 +120,22 @@ ctx.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
     ctx.postMessage(response);
   } catch (error) {
     console.error('EPANET worker error', error);
+    
+    // Intentar leer el reporte de EPANET para más detalles
+    let reportContent = '';
+    try {
+      reportContent = workspace.readFile('report.rpt');
+    } catch (e) {
+      // Ignorar si no se puede leer
+    }
+    
     const response: WorkerErrorResponse = {
       type: 'error',
       error: error instanceof Error ? error.message : 'Error desconocido al simular.',
+      details: {
+        inpContent: inpContent || undefined,
+        reportContent: reportContent || undefined,
+      },
     };
     ctx.postMessage(response);
   }

@@ -7,7 +7,14 @@ import { validateNetworkForSimulation } from './networkValidation';
 
 type WorkerMessage =
   | { type: 'success'; payload: SimulationResults }
-  | { type: 'error'; error: string };
+  | { 
+      type: 'error'; 
+      error: string;
+      details?: {
+        inpContent?: string;
+        reportContent?: string;
+      };
+    };
 
 export const useSimulationRunner = () => {
   const workerRef = useRef<Worker | null>(null);
@@ -39,6 +46,22 @@ export const useSimulationRunner = () => {
         });
       } else if (data.type === 'error') {
         const details = mapWorkerErrorToDetails(data.error);
+        
+        // Log detallado solo si hay información adicional
+        if (data.details?.inpContent || data.details?.reportContent) {
+          console.error('=== SIMULATION ERROR DETAILS ===');
+          console.error('Error:', data.error);
+          if (data.details.inpContent) {
+            console.error('\nINP Content:');
+            console.error(data.details.inpContent);
+          }
+          if (data.details.reportContent) {
+            console.error('\nEPANET Report:');
+            console.error(data.details.reportContent);
+          }
+          console.error('=== END ERROR DETAILS ===');
+        }
+        
         const summary = details.map((detail) => detail.title).join(' · ');
         setError(details);
         pendingPromise.current?.reject(new Error(summary));

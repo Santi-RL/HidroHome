@@ -1,10 +1,13 @@
 import { Alert, Button, Group, Loader, Stack, Table, Text } from '@mantine/core';
 import { IconPlayerPlay } from '@tabler/icons-react';
-import { useSimulationState } from '../../shared/state/editorStore';
+import { useSimulationState, useUnitSystem } from '../../shared/state/editorStore';
 import { useSimulationRunner } from './useSimulationRunner';
+import { UNIT_SYSTEMS } from '../../shared/types/hydro';
 
 export function SimulationPanel() {
   const simulation = useSimulationState();
+  const unitSystem = useUnitSystem();
+  const units = UNIT_SYSTEMS[unitSystem];
   const { runSimulation } = useSimulationRunner();
 
   const handleRun = async () => {
@@ -70,15 +73,15 @@ export function SimulationPanel() {
             <Table.Tbody>
               <Table.Tr>
                 <Table.Td>Presion maxima</Table.Td>
-                <Table.Td>{simulation.results.summary.maxPressure.toFixed(2)}</Table.Td>
+                <Table.Td>{simulation.results.summary.maxPressure.toFixed(2)} {units.pressure}</Table.Td>
               </Table.Tr>
               <Table.Tr>
                 <Table.Td>Presion minima</Table.Td>
-                <Table.Td>{simulation.results.summary.minPressure.toFixed(2)}</Table.Td>
+                <Table.Td>{simulation.results.summary.minPressure.toFixed(2)} {units.pressure}</Table.Td>
               </Table.Tr>
               <Table.Tr>
                 <Table.Td>Caudal maximo</Table.Td>
-                <Table.Td>{simulation.results.summary.maxFlow.toFixed(3)}</Table.Td>
+                <Table.Td>{simulation.results.summary.maxFlow.toFixed(3)} {units.flow}</Table.Td>
               </Table.Tr>
             </Table.Tbody>
           </Table>

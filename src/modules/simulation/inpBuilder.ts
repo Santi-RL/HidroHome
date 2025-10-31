@@ -2,24 +2,46 @@ import type { HydroLink, HydroNetwork, HydroNode } from '../../shared/types/hydr
 
 const formatNumber = (value: number, decimals = 3) => Number(value).toFixed(decimals);
 
-const toLps = (value: number) => value * 1000;
-
 const buildOptionsSection = () => {
   const flowUnits = 'LPS';
   return [
     '[OPTIONS]',
-    ` UNITS              ${flowUnits}`,
-    ' HEADLOSS           H-W',
-    ' HYDRAULIC          ACCURACY 0.001',
-    ' UNBALANCED         CONTINUE 10',
-    ' PATTERN            1',
-    ' REPORT             YES',
+    `UNITS              ${flowUnits}`,
+    'HEADLOSS           H-W',
+    'HYDRAULICS         D-W',
+    'QUALITY            NONE',
+    'VISCOSITY          1.0',
+    'DIFFUSIVITY        1.0',
+    'SPECIFIC GRAVITY   1.0',
+    'TRIALS             40',
+    'ACCURACY           0.001',
+    'UNBALANCED         CONTINUE 10',
+    'PATTERN            1',
+    'DEMAND MULTIPLIER  1.0',
+    'EMITTER EXPONENT   0.5',
+    'TOLERANCE          0.01',
+    '',
+  ].join('\n');
+};
+
+const buildTimesSection = () => {
+  return [
+    '[TIMES]',
+    'DURATION           0:00',
+    'HYDRAULIC TIMESTEP 1:00',
+    'QUALITY TIMESTEP   0:05',
+    'PATTERN TIMESTEP   1:00',
+    'PATTERN START      0:00',
+    'REPORT TIMESTEP    1:00',
+    'REPORT START       0:00',
+    'START CLOCKTIME    12:00:00 AM',
+    'STATISTIC          NONE',
     '',
   ].join('\n');
 };
 
 const buildReportSection = () =>
-  ['[REPORT]', ' STATUS            YES', ' NODES             ALL', ' LINKS             ALL', ''].join('\n');
+  ['[REPORT]', 'STATUS             YES', 'SUMMARY            YES', 'NODES              ALL', 'LINKS              ALL', ''].join('\n');
 
 const isJunction = (node: HydroNode) => node.type === 'junction' || node.type === 'fixture';
 
@@ -29,7 +51,7 @@ const buildJunctions = (nodes: HydroNode[]) => {
     .filter(isJunction)
     .forEach((node) => {
       lines.push(
-        `${node.id} ${formatNumber(node.elevation, 3)} ${formatNumber(toLps(node.baseDemand), 4)}`,
+        `${node.id} ${formatNumber(node.elevation, 3)} ${formatNumber(node.baseDemand, 4)}`,
       );
     });
   lines.push('');
@@ -130,6 +152,7 @@ const buildCoordinates = (nodes: HydroNode[]) => {
 export const buildInpFromNetwork = (network: HydroNetwork): string => {
   const sections: string[] = [];
   sections.push(buildOptionsSection());
+  sections.push(buildTimesSection());
   sections.push(buildReportSection());
   sections.push(buildJunctions(network.nodes));
   const reservoirs = buildReservoirs(network.nodes);
