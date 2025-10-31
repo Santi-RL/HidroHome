@@ -20,6 +20,8 @@ type Selection =
   | { type: 'link'; id: string }
   | null;
 
+type ViewMode = '2d' | '3d';
+
 interface SimulationState {
   status: 'idle' | 'running' | 'success' | 'error';
   results?: SimulationResults;
@@ -35,6 +37,7 @@ interface EditorState {
   unitSystem: UnitSystemId;
   isDirty: boolean;
   simulation: SimulationState;
+  viewMode: ViewMode;
   addNode: (itemId: string, position: Vec2) => void;
   updateNodePosition: (nodeId: string, position: Vec2) => void;
   updateNode: (nodeId: string, changes: Partial<HydroNode>) => void;
@@ -56,6 +59,7 @@ interface EditorState {
   setSimulationError: (details: SimulationErrorDetail[] | SimulationErrorDetail) => void;
   resetSimulation: () => void;
   markSaved: () => void;
+  setViewMode: (mode: ViewMode) => void;
 }
 
 const nowIso = () => new Date().toISOString();
@@ -101,6 +105,7 @@ export const useEditorStore = create<EditorState>()(
       unitSystem: 'ar',
       isDirty: false,
       simulation: { status: 'idle' },
+      viewMode: '2d',
 
       addNode: (itemId, position) => {
         const item = getCatalogItem(itemId);
@@ -334,12 +339,15 @@ export const useEditorStore = create<EditorState>()(
       resetSimulation: () => set({ simulation: { status: 'idle' } }),
 
       markSaved: () => set({ isDirty: false }),
+
+      setViewMode: (mode) => set({ viewMode: mode }),
     }),
     {
       name: 'hidrohome-editor-store',
       partialize: (state) => ({
         network: state.network,
         unitSystem: state.unitSystem,
+        viewMode: state.viewMode,
       }),
     },
   ),
@@ -354,3 +362,4 @@ export const useActiveLinkTemplateId = () =>
   useEditorStore((state) => state.activeLinkTemplateId);
 export const useLinkStartNodeId = () => useEditorStore((state) => state.linkStartNodeId);
 export const useActiveTool = () => useEditorStore((state) => state.activeTool);
+export const useViewMode = () => useEditorStore((state) => state.viewMode);

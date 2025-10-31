@@ -1,6 +1,16 @@
 import { useEffect, useRef } from 'react';
-import { Box, Text } from '@mantine/core';
+import { ActionIcon, Box, Group, Stack, Text } from '@mantine/core';
+import {
+  IconArrowDown,
+  IconArrowLeft,
+  IconArrowRight,
+  IconArrowUp,
+  IconMinus,
+  IconPlus,
+  IconRefresh,
+} from '@tabler/icons-react';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useNetwork } from '../../shared/state/editorStore';
 import { getCatalogItem } from '../../shared/constants/catalog';
 
@@ -28,6 +38,7 @@ export function Simple3DViewer() {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
   const animationRef = useRef<number | null>(null);
   const network = useNetwork();
 
@@ -35,16 +46,16 @@ export function Simple3DViewer() {
     const container = containerRef.current;
     if (!container) return;
 
-    const width = container.clientWidth || 640;
-    const height = container.clientHeight || 240;
+    const width = container.clientWidth || window.innerWidth;
+    const height = container.clientHeight || window.innerHeight;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf8fafc);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(55, width / height, 0.1, 1000);
-    camera.position.set(6, 6, 10);
-    camera.lookAt(new THREE.Vector3(0, 0, 0));
+    camera.position.set(12, 12, 20); // Centered on the grid (gridWidth/2, height, gridHeight/2 + offset)
+    camera.lookAt(new THREE.Vector3(12, 0, 7)); // Look at center of grid
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -59,7 +70,12 @@ export function Simple3DViewer() {
     directional.position.set(6, 10, 4);
     scene.add(directional);
 
-    const planeGeometry = new THREE.PlaneGeometry(40, 40);
+    // Grid dimensions to match 2D canvas (1200px x 720px with 50px spacing)
+    const gridWidth = 24; // 1200px / 50
+    const gridHeight = 14; // 720px / 50
+    const gridDivisions = 24; // Number of grid lines (matches 50px spacing in 2D)
+    
+    const planeGeometry = new THREE.PlaneGeometry(gridWidth, gridHeight);
     const planeMaterial = new THREE.MeshStandardMaterial({
       color: 0xe2e8f0,
       side: THREE.DoubleSide,
@@ -67,13 +83,28 @@ export function Simple3DViewer() {
     const plane = new THREE.Mesh(planeGeometry, planeMaterial);
     plane.rotation.x = Math.PI / 2;
     plane.position.y = -0.1;
+    plane.position.x = gridWidth / 2;
+    plane.position.z = gridHeight / 2;
     scene.add(plane);
 
-    const grid = new THREE.GridHelper(20, 20, 0x94a3b8, 0xcbd5f5);
+    const grid = new THREE.GridHelper(gridWidth, gridDivisions, 0x94a3b8, 0xcbd5f5);
+    grid.position.x = gridWidth / 2;
+    grid.position.z = gridHeight / 2;
     scene.add(grid);
+
+    // Add OrbitControls
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.screenSpacePanning = false;
+    controls.minDistance = 3;
+    controls.maxDistance = 50;
+    controls.maxPolarAngle = Math.PI / 2;
+    controlsRef.current = controls;
 
     const animate = () => {
       animationRef.current = requestAnimationFrame(animate);
+      controls.update();
       renderer.render(scene, camera);
     };
     animate();
@@ -82,18 +113,27 @@ export function Simple3DViewer() {
       if (!container || !rendererRef.current || !cameraRef.current) return;
       const newWidth = container.clientWidth;
       const newHeight = container.clientHeight;
-      rendererRef.current.setSize(newWidth, newHeight);
-      cameraRef.current.aspect = newWidth / newHeight;
-      cameraRef.current.updateProjectionMatrix();
+      if (newWidth > 0 && newHeight > 0) {
+        rendererRef.current.setSize(newWidth, newHeight);
+        cameraRef.current.aspect = newWidth / newHeight;
+        cameraRef.current.updateProjectionMatrix();
+      }
     };
 
     window.addEventListener('resize', handleResize);
+    
+    // Force initial resize after layout is complete
+    setTimeout(() => handleResize(), 100);
 
     return () => {
       window.removeEventListener('resize', handleResize);
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
+      }
+      if (controlsRef.current) {
+        controlsRef.current.dispose();
+        controlsRef.current = null;
       }
       renderer.dispose();
       container.removeChild(renderer.domElement);
@@ -167,22 +207,182 @@ export function Simple3DViewer() {
     scene.add(group);
   }, [network]);
 
+  // Camera control functions
+  const handleZoomIn = () => {
+    if (!controlsRef.current || !cameraRef.current) return;
+    const controls = controlsRef.current;
+    const camera = cameraRef.current;
+    const direction = new THREE.Vector3();
+    camera.getWorldDirection(direction);
+    const distance = controls.getDistance();
+    const moveDistance = distance * 0.2;
+    
+    if (distance - moveDistance >= controls.minDistance) {
+      camera.position.addScaledVector(direction, moveDistance);
+      controls.update();
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (!controlsRef.current || !cameraRef.current) return;
+    const controls = controlsRef.current;
+    const camera = cameraRef.current;
+    const direction = new THREE.Vector3();
+    camera.getWorldDirection(direction);
+    const distance = controls.getDistance();
+    const moveDistance = distance * 0.2;
+    
+    if (distance + moveDistance <= controls.maxDistance) {
+      camera.position.addScaledVector(direction, -moveDistance);
+      controls.update();
+    }
+  };
+
+  const handlePan = (direction: 'up' | 'down' | 'left' | 'right') => {
+    if (!controlsRef.current || !cameraRef.current) return;
+    const panSpeed = 0.5;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    
+    const offset = new THREE.Vector3();
+    
+    switch (direction) {
+      case 'up':
+        offset.copy(camera.up).multiplyScalar(panSpeed);
+        break;
+      case 'down':
+        offset.copy(camera.up).multiplyScalar(-panSpeed);
+        break;
+      case 'left':
+        offset.crossVectors(camera.up, camera.getWorldDirection(new THREE.Vector3())).multiplyScalar(panSpeed);
+        break;
+      case 'right':
+        offset.crossVectors(camera.up, camera.getWorldDirection(new THREE.Vector3())).multiplyScalar(-panSpeed);
+        break;
+    }
+    
+    camera.position.add(offset);
+    controls.target.add(offset);
+    controls.update();
+  };
+
+  const handleReset = () => {
+    if (!cameraRef.current || !controlsRef.current) return;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    
+    // Reset to initial position centered on grid
+    camera.position.set(12, 12, 20);
+    controls.target.set(12, 0, 7);
+    controls.update();
+  };
+
   return (
     <Box
       ref={containerRef}
-      h={240}
+      h="100%"
+      w="100%"
       style={{
-        borderRadius: 8,
-        border: '1px solid var(--mantine-color-gray-4)',
         position: 'relative',
         overflow: 'hidden',
       }}
     >
       {network.nodes.length === 0 && (
-        <Text size="sm" c="dimmed" style={{ position: 'absolute', left: 16, top: 16 }}>
+        <Text size="sm" c="dimmed" style={{ position: 'absolute', left: 16, top: 16, zIndex: 10 }}>
           Agrega elementos en 2D para verlos en 3D.
         </Text>
       )}
+      
+      {/* Control buttons */}
+      <Box
+        style={{
+          position: 'absolute',
+          bottom: 16,
+          right: 16,
+          zIndex: 10,
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          borderRadius: 8,
+          padding: 8,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+        }}
+      >
+        <Stack gap={8}>
+          {/* Pan controls */}
+          <Box>
+            <Group gap={4} justify="center">
+              <Box style={{ width: 32 }} />
+              <ActionIcon
+                variant="light"
+                size="sm"
+                onClick={() => handlePan('up')}
+                aria-label="Mover hacia arriba"
+              >
+                <IconArrowUp size={16} />
+              </ActionIcon>
+              <Box style={{ width: 32 }} />
+            </Group>
+            <Group gap={4} justify="center">
+              <ActionIcon
+                variant="light"
+                size="sm"
+                onClick={() => handlePan('left')}
+                aria-label="Mover hacia la izquierda"
+              >
+                <IconArrowLeft size={16} />
+              </ActionIcon>
+              <ActionIcon
+                variant="filled"
+                color="blue"
+                size="sm"
+                onClick={handleReset}
+                aria-label="Resetear vista"
+              >
+                <IconRefresh size={16} />
+              </ActionIcon>
+              <ActionIcon
+                variant="light"
+                size="sm"
+                onClick={() => handlePan('right')}
+                aria-label="Mover hacia la derecha"
+              >
+                <IconArrowRight size={16} />
+              </ActionIcon>
+            </Group>
+            <Group gap={4} justify="center">
+              <Box style={{ width: 32 }} />
+              <ActionIcon
+                variant="light"
+                size="sm"
+                onClick={() => handlePan('down')}
+                aria-label="Mover hacia abajo"
+              >
+                <IconArrowDown size={16} />
+              </ActionIcon>
+              <Box style={{ width: 32 }} />
+            </Group>
+          </Box>
+          
+          {/* Zoom controls */}
+          <Group gap={4} justify="center">
+            <ActionIcon
+              variant="light"
+              size="sm"
+              onClick={handleZoomOut}
+              aria-label="Alejar"
+            >
+              <IconMinus size={16} />
+            </ActionIcon>
+            <ActionIcon
+              variant="light"
+              size="sm"
+              onClick={handleZoomIn}
+              aria-label="Acercar"
+            >
+              <IconPlus size={16} />
+            </ActionIcon>
+          </Group>
+        </Stack>
+      </Box>
     </Box>
   );
 }

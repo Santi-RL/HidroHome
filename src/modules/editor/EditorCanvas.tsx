@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
 import { Box } from '@mantine/core';
 import { useElementSize, useMergedRef } from '@mantine/hooks';
 import { Layer, Line, Rect, Stage, Text as KonvaText, Group as KonvaGroup } from 'react-konva';
@@ -15,6 +15,7 @@ import {
 import type { Vec2 } from '../../shared/types/math';
 
 const DEFAULT_CANVAS_SIZE = { width: 1200, height: 720 };
+const CANVAS_GROWTH_PADDING = 200;
 
 const gridLines = (size: number, max: number): number[] => {
   const lines: number[] = [];
@@ -38,6 +39,7 @@ export function EditorCanvas() {
   const [isPanning, setIsPanning] = useState(false);
   const [stageScale, setStageScale] = useState(1);
   const [stagePosition, setStagePosition] = useState<Vec2>({ x: 0, y: 0 });
+  const [canvasSize, setCanvasSize] = useState(DEFAULT_CANVAS_SIZE);
   const addNode = useEditorStore((state) => state.addNode);
   const updateNodePosition = useEditorStore((state) => state.updateNodePosition);
   const selectNode = useEditorStore((state) => state.selectNode);
@@ -46,8 +48,43 @@ export function EditorCanvas() {
   const setLinkStartNode = useEditorStore((state) => state.setLinkStartNode);
   const completeLinkTo = useEditorStore((state) => state.completeLinkTo);
 
-  const stageWidth = width || DEFAULT_CANVAS_SIZE.width;
-  const stageHeight = height || DEFAULT_CANVAS_SIZE.height;
+  const viewportWidth = width > 0 ? width : DEFAULT_CANVAS_SIZE.width;
+  const viewportHeight = height > 0 ? height : DEFAULT_CANVAS_SIZE.height;
+
+  const stageWidth = Math.max(viewportWidth, canvasSize.width);
+  const stageHeight = Math.max(viewportHeight, canvasSize.height);
+
+  const ensureCanvasContainsPoint = useCallback((point: Vec2) => {
+    setCanvasSize((prev) => {
+      const nextWidth = Math.max(prev.width, point.x + CANVAS_GROWTH_PADDING);
+      const nextHeight = Math.max(prev.height, point.y + CANVAS_GROWTH_PADDING);
+      if (nextWidth === prev.width && nextHeight === prev.height) {
+        return prev;
+      }
+      return { width: nextWidth, height: nextHeight };
+    });
+  }, []);
+
+  const ensureCanvasFitsView = useCallback(
+    (position: Vec2, scale: number) => {
+      if (scale <= 0) return;
+
+      setCanvasSize((prev) => {
+        const viewLeft = -position.x / scale;
+        const viewTop = -position.y / scale;
+        const viewRight = viewLeft + viewportWidth / scale;
+        const viewBottom = viewTop + viewportHeight / scale;
+
+        const nextWidth = Math.max(prev.width, viewRight + CANVAS_GROWTH_PADDING);
+        const nextHeight = Math.max(prev.height, viewBottom + CANVAS_GROWTH_PADDING);
+        if (nextWidth === prev.width && nextHeight === prev.height) {
+          return prev;
+        }
+        return { width: nextWidth, height: nextHeight };
+      });
+    },
+    [viewportWidth, viewportHeight]
+  );
 
   const verticalLines = useMemo(() => gridLines(50, stageWidth), [stageWidth]);
   const horizontalLines = useMemo(() => gridLines(50, stageHeight), [stageHeight]);
@@ -82,6 +119,40 @@ export function EditorCanvas() {
     };
   }, []);
 
+  useEffect(() => {
+    if (network.nodes.length > 0) return;
+
+    setCanvasSize((prev) => {
+      if (prev.width === DEFAULT_CANVAS_SIZE.width && prev.height === DEFAULT_CANVAS_SIZE.height) {
+        return prev;
+      }
+      return { ...DEFAULT_CANVAS_SIZE };
+    });
+  }, [network.nodes.length]);
+
+  useEffect(() => {
+    if (network.nodes.length === 0) return;
+
+    let maxX = 0;
+    let maxY = 0;
+
+    network.nodes.forEach((node) => {
+      const catalogItem = node.deviceId ? getCatalogItem(node.deviceId) : undefined;
+      const footprint =
+        catalogItem?.element === 'node'
+          ? catalogItem.defaults.footprint
+          : { width: 50, height: 50 };
+      const nodeHalfWidth = footprint.width / 2;
+      const nodeHalfHeight = footprint.height / 2;
+      const candidateX = node.position.x + nodeHalfWidth;
+      const candidateY = node.position.y + nodeHalfHeight;
+      if (candidateX > maxX) maxX = candidateX;
+      if (candidateY > maxY) maxY = candidateY;
+    });
+
+    ensureCanvasContainsPoint({ x: maxX, y: maxY });
+  }, [network.nodes, ensureCanvasContainsPoint]);
+
   const toStageCoordinates = (point: Vec2): Vec2 => ({
     x: (point.x - stagePosition.x) / stageScale,
     y: (point.y - stagePosition.y) / stageScale,
@@ -100,6 +171,14 @@ export function EditorCanvas() {
     };
     const position = toStageCoordinates(containerPoint);
     addNode(itemId, position);
+
+    const item = getCatalogItem(itemId);
+    const footprint =
+      item?.element === 'node' ? item.defaults.footprint : { width: 50, height: 50 };
+    ensureCanvasContainsPoint({
+      x: position.x + footprint.width / 2,
+      y: position.y + footprint.height / 2,
+    });
   };
 
   const handleDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
@@ -149,6 +228,10 @@ export function EditorCanvas() {
         position: 'relative',
         overflow: 'hidden',
         cursor: isShiftPressed ? (isPanning ? 'grabbing' : 'grab') : 'default',
+        width: '100%',
+        height: '100%',
+        flex: 1,
+        minHeight: 0,
       }}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
@@ -176,6 +259,7 @@ export function EditorCanvas() {
           if (stage) {
             const position = stage.position();
             setStagePosition({ x: position.x, y: position.y });
+            ensureCanvasFitsView({ x: position.x, y: position.y }, stageScale);
           }
         }}
         onDragEnd={(event) => {
@@ -183,6 +267,7 @@ export function EditorCanvas() {
           if (stage) {
             const position = stage.position();
             setStagePosition({ x: position.x, y: position.y });
+            ensureCanvasFitsView({ x: position.x, y: position.y }, stageScale);
           }
           setIsPanning(false);
         }}
@@ -206,6 +291,7 @@ export function EditorCanvas() {
 
           setStageScale(newScale);
           setStagePosition(newPosition);
+          ensureCanvasFitsView(newPosition, newScale);
         }}
       >
         <Layer>
@@ -241,7 +327,10 @@ export function EditorCanvas() {
           {network.nodes.map((node) => {
             const catalogItem = node.deviceId ? getCatalogItem(node.deviceId) : undefined;
             const fill = catalogItem?.color ?? '#2563eb';
-            const footprint = catalogItem?.element === 'node' ? catalogItem.defaults.footprint : { width: 50, height: 50 };
+            const footprint =
+              catalogItem?.element === 'node'
+                ? catalogItem.defaults.footprint
+                : { width: 50, height: 50 };
             const isSelected = selection?.type === 'node' && selection.id === node.id;
             const isLinkStart = linkStartNodeId === node.id;
             return (
@@ -253,6 +342,10 @@ export function EditorCanvas() {
                 onDragEnd={(event) => {
                   const { x, y } = event.target.position();
                   updateNodePosition(node.id, { x, y });
+                  ensureCanvasContainsPoint({
+                    x: x + footprint.width / 2,
+                    y: y + footprint.height / 2,
+                  });
                 }}
                 onClick={() => handleNodeClick(node.id)}
               >
@@ -301,25 +394,27 @@ export function EditorCanvas() {
             />
           )}
         </Layer>
-        <Layer>
-          <KonvaGroup x={12} y={stageHeight - 40}>
-            <Rect width={140} height={32} fill="rgba(15,23,42,0.75)" cornerRadius={6} />
-            <KonvaText
-              x={8}
-              y={8}
-              text={
-                activeTool === 'connect'
-                  ? linkStartNodeId
-                    ? 'Selecciona destino'
-                    : 'Selecciona nodo origen'
-                  : 'Click para seleccionar'
-              }
-              fontSize={12}
-              fill="#f8fafc"
-            />
-          </KonvaGroup>
-        </Layer>
       </Stage>
+      <Box
+        style={{
+          position: 'absolute',
+          bottom: 12,
+          left: 12,
+          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+          color: '#f8fafc',
+          padding: '8px 12px',
+          borderRadius: 6,
+          fontSize: 12,
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}
+      >
+        {activeTool === 'connect'
+          ? linkStartNodeId
+            ? 'Selecciona destino'
+            : 'Selecciona nodo origen'
+          : 'Click para seleccionar'}
+      </Box>
     </Box>
   );
 }

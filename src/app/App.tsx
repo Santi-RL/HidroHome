@@ -11,6 +11,7 @@ import {
   ScrollArea,
   Select,
   Stack,
+  Switch,
   Text,
   TextInput,
   Title,
@@ -31,6 +32,7 @@ import {
   useIsDirty,
   useNetwork,
   useUnitSystem,
+  useViewMode,
 } from '../shared/state/editorStore';
 import { UNIT_SYSTEMS, type UnitSystemId } from '../shared/types/hydro';
 import { exportProjectFile, importProjectFile } from '../modules/storage/projectStorage';
@@ -50,8 +52,10 @@ export function App() {
   const network = useNetwork();
   const unitSystem = useUnitSystem();
   const isDirty = useIsDirty();
+  const viewMode = useViewMode();
   const setNetworkName = useEditorStore((state) => state.setNetworkName);
   const setUnitSystem = useEditorStore((state) => state.setUnitSystem);
+  const setViewMode = useEditorStore((state) => state.setViewMode);
   const loadNetwork = useEditorStore((state) => state.loadNetwork);
   const markSaved = useEditorStore((state) => state.markSaved);
   const { recoverAutosave, currentVersion } = useAutosave();
@@ -137,7 +141,7 @@ export function App() {
       header={{ height: 68 }}
       navbar={{ width: navbarWidth, breakpoint: 'sm' }}
       aside={{ width: 320, breakpoint: 'lg' }}
-      padding="md"
+      padding={viewMode === '2d' ? 'md' : 0}
     >
       <Modal
         opened={isHelpOpen}
@@ -199,12 +203,16 @@ export function App() {
             <Title order={4}>4. Visualizaciones 2D y 3D</Title>
             <List spacing="xs" withPadding>
               <List.Item>
-                El editor principal muestra tu diseño en 2D. Usa la rueda del mouse para hacer zoom
-                y mantén presionado el botón derecho para desplazar la vista.
+                Usa el switch en la barra superior para alternar entre la vista 2D (editor) y la
+                vista 3D (visualización del modelo).
               </List.Item>
               <List.Item>
-                En la parte inferior encontrarás el visor 3D. Interactúa con él arrastrando para
-                orbitar, haciendo zoom con la rueda y usando clic derecho para desplazar.
+                En la vista 2D: usa la rueda del mouse para hacer zoom y mantén presionado Shift
+                mientras arrastras para desplazar la vista.
+              </List.Item>
+              <List.Item>
+                En la vista 3D: arrastra para orbitar, usa la rueda del mouse para hacer zoom y el
+                botón derecho para desplazar.
               </List.Item>
             </List>
           </div>
@@ -258,6 +266,12 @@ export function App() {
             />
           </Group>
           <Group gap="sm">
+            <Switch
+              checked={viewMode === '3d'}
+              onChange={(event) => setViewMode(event.currentTarget.checked ? '3d' : '2d')}
+              label={viewMode === '3d' ? 'Vista 3D' : 'Vista 2D'}
+              size="md"
+            />
             <Select
               data={unitOptions}
               value={unitSystem}
@@ -327,13 +341,16 @@ export function App() {
         </ScrollArea>
       </AppShell.Aside>
 
-      <AppShell.Main>
-        <Stack gap="md" h="100%">
-          <Box style={{ flex: 1, minHeight: 480 }}>
+      <AppShell.Main style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {viewMode === '2d' ? (
+          <Box style={{ flex: 1, display: 'flex', minHeight: 0 }}>
             <EditorCanvas />
           </Box>
-          <Simple3DViewer />
-        </Stack>
+        ) : (
+          <Box style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <Simple3DViewer />
+          </Box>
+        )}
       </AppShell.Main>
     </AppShell>
   );
