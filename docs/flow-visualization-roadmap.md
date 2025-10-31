@@ -2,10 +2,11 @@
 
 Ultima actualizacion: 2025-10-30
 
-1. [ ] Definir nuevo modelo de resultados con series temporales
-   - Extender `SimulationResults` en `src/shared/types/hydro.ts` para incluir una coleccion de timesteps con valores por nodo y por enlace (flujo, velocidad, presion, nivel de tanque, etc.).
-   - Documentar el nuevo formato y agregar utilidades de seleccion en `src/shared/state/editorStore.ts` para acceder al timestep activo y a los rangos min/max.
-   - Preparar una migracion simple para limpiar resultados anteriores guardados en localStorage.
+1. [x] Definir nuevo modelo de resultados con series temporales
+   - Extendido `SimulationResults` en `src/shared/types/hydro.ts` con timesteps, rangos, duration y reportStep
+   - Agregados selectors `useCurrentTimestep`, `useSimulationRanges` y `usePlaybackControls` en `src/shared/state/editorStore.ts`
+   - Creado sistema de migración automática en `src/shared/utils/simulationMigration.ts`
+   - Estado de reproducción (play/pause, velocidad, timestep actual) integrado en el store
 
 2. [ ] Ajustar la configuracion de EPANET para simulaciones transitorias
    - Actualizar `src/modules/simulation/inpBuilder.ts` para exponer duracion, intervalo hidraulico y de reporte (por ahora constantes razonables, luego configurables).

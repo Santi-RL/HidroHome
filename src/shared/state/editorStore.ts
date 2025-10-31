@@ -26,6 +26,12 @@ interface SimulationState {
   status: 'idle' | 'running' | 'success' | 'error';
   results?: SimulationResults;
   error?: SimulationErrorDetail[];
+  /** Índice del timestep actualmente visible/seleccionado para animación (0-based) */
+  currentTimestepIndex: number;
+  /** Estado de reproducción de la animación */
+  isPlaying: boolean;
+  /** Velocidad de reproducción (multiplicador, 1.0 = tiempo real) */
+  playbackSpeed: number;
 }
 
 interface EditorState {
@@ -60,6 +66,16 @@ interface EditorState {
   resetSimulation: () => void;
   markSaved: () => void;
   setViewMode: (mode: ViewMode) => void;
+  /** Establecer el índice del timestep activo */
+  setCurrentTimestep: (index: number) => void;
+  /** Avanzar al siguiente timestep */
+  nextTimestep: () => void;
+  /** Retroceder al timestep anterior */
+  previousTimestep: () => void;
+  /** Iniciar/pausar la reproducción de la animación */
+  togglePlayback: () => void;
+  /** Establecer la velocidad de reproducción */
+  setPlaybackSpeed: (speed: number) => void;
 }
 
 const nowIso = () => new Date().toISOString();
@@ -73,6 +89,13 @@ const createEmptyNetwork = (): HydroNetwork => ({
   units: 'ar',
   nodes: [],
   links: [],
+});
+
+const createDefaultSimulationState = (): SimulationState => ({
+  status: 'idle',
+  currentTimestepIndex: 0,
+  isPlaying: false,
+  playbackSpeed: 1.0,
 });
 
 const updateTimestamp = (network: HydroNetwork): HydroNetwork => ({
@@ -104,7 +127,7 @@ export const useEditorStore = create<EditorState>()(
       linkStartNodeId: null,
       unitSystem: 'ar',
       isDirty: false,
-      simulation: { status: 'idle' },
+      simulation: createDefaultSimulationState(),
       viewMode: '2d',
 
       addNode: (itemId, position) => {
@@ -305,7 +328,7 @@ export const useEditorStore = create<EditorState>()(
           linkStartNodeId: null,
           unitSystem: network.units,
           isDirty: false,
-          simulation: { status: 'idle' },
+          simulation: createDefaultSimulationState(),
         }),
 
       setSimulationStatus: (status) =>
@@ -323,6 +346,9 @@ export const useEditorStore = create<EditorState>()(
             status: 'success',
             results,
             error: undefined,
+            currentTimestepIndex: 0,
+            isPlaying: false,
+            playbackSpeed: 1.0,
           },
         }),
 
@@ -332,15 +358,73 @@ export const useEditorStore = create<EditorState>()(
           simulation: {
             status: 'error',
             error: normalized,
+            currentTimestepIndex: 0,
+            isPlaying: false,
+            playbackSpeed: 1.0,
           },
         });
       },
 
-      resetSimulation: () => set({ simulation: { status: 'idle' } }),
+      resetSimulation: () => set({ simulation: createDefaultSimulationState() }),
 
       markSaved: () => set({ isDirty: false }),
 
       setViewMode: (mode) => set({ viewMode: mode }),
+
+      setCurrentTimestep: (index) =>
+        set((state) => {
+          const maxIndex = state.simulation.results?.timesteps.length
+            ? state.simulation.results.timesteps.length - 1
+            : 0;
+          const clampedIndex = Math.max(0, Math.min(index, maxIndex));
+          return {
+            simulation: {
+              ...state.simulation,
+              currentTimestepIndex: clampedIndex,
+            },
+          };
+        }),
+
+      nextTimestep: () =>
+        set((state) => {
+          const maxIndex = state.simulation.results?.timesteps.length
+            ? state.simulation.results.timesteps.length - 1
+            : 0;
+          const nextIndex = Math.min(state.simulation.currentTimestepIndex + 1, maxIndex);
+          return {
+            simulation: {
+              ...state.simulation,
+              currentTimestepIndex: nextIndex,
+            },
+          };
+        }),
+
+      previousTimestep: () =>
+        set((state) => {
+          const prevIndex = Math.max(state.simulation.currentTimestepIndex - 1, 0);
+          return {
+            simulation: {
+              ...state.simulation,
+              currentTimestepIndex: prevIndex,
+            },
+          };
+        }),
+
+      togglePlayback: () =>
+        set((state) => ({
+          simulation: {
+            ...state.simulation,
+            isPlaying: !state.simulation.isPlaying,
+          },
+        })),
+
+      setPlaybackSpeed: (speed) =>
+        set((state) => ({
+          simulation: {
+            ...state.simulation,
+            playbackSpeed: Math.max(0.1, Math.min(speed, 10.0)),
+          },
+        })),
     }),
     {
       name: 'hidrohome-editor-store',
@@ -363,3 +447,37 @@ export const useActiveLinkTemplateId = () =>
 export const useLinkStartNodeId = () => useEditorStore((state) => state.linkStartNodeId);
 export const useActiveTool = () => useEditorStore((state) => state.activeTool);
 export const useViewMode = () => useEditorStore((state) => state.viewMode);
+
+/**
+ * Hook para obtener el timestep actual y sus datos asociados.
+ */
+export const useCurrentTimestep = () =>
+  useEditorStore((state) => {
+    const { simulation } = state;
+    if (!simulation.results?.timesteps.length) {
+      return null;
+    }
+    return simulation.results.timesteps[simulation.currentTimestepIndex];
+  });
+
+/**
+ * Hook para obtener los rangos globales de la simulación.
+ */
+export const useSimulationRanges = () =>
+  useEditorStore((state) => state.simulation.results?.ranges);
+
+/**
+ * Hook para el control de reproducción.
+ */
+export const usePlaybackControls = () =>
+  useEditorStore((state) => ({
+    currentIndex: state.simulation.currentTimestepIndex,
+    isPlaying: state.simulation.isPlaying,
+    playbackSpeed: state.simulation.playbackSpeed,
+    totalTimesteps: state.simulation.results?.timesteps.length ?? 0,
+    setCurrentTimestep: state.setCurrentTimestep,
+    nextTimestep: state.nextTimestep,
+    previousTimestep: state.previousTimestep,
+    togglePlayback: state.togglePlayback,
+    setPlaybackSpeed: state.setPlaybackSpeed,
+  }));

@@ -343,11 +343,11 @@ export function App() {
 
       <AppShell.Main style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {viewMode === '2d' ? (
-          <Box style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+          <Box style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}>
             <EditorCanvas />
           </Box>
         ) : (
-          <Box style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <Box style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
             <Simple3DViewer />
           </Box>
         )}

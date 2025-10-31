@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
 import { Box } from '@mantine/core';
-import { useElementSize, useMergedRef } from '@mantine/hooks';
 import { Layer, Line, Rect, Stage, Text as KonvaText, Group as KonvaGroup } from 'react-konva';
 import { CATALOG_DRAG_DATA_KEY } from '../catalog/CatalogPanel';
 import { getCatalogItem } from '../../shared/constants/catalog';
@@ -15,7 +14,6 @@ import {
 import type { Vec2 } from '../../shared/types/math';
 
 const DEFAULT_CANVAS_SIZE = { width: 1200, height: 720 };
-const CANVAS_GROWTH_PADDING = 200;
 
 const gridLines = (size: number, max: number): number[] => {
   const lines: number[] = [];
@@ -26,9 +24,7 @@ const gridLines = (size: number, max: number): number[] => {
 };
 
 export function EditorCanvas() {
-  const { ref: measureRef, width, height } = useElementSize<HTMLDivElement>();
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mergedRef = useMergedRef<HTMLDivElement>(measureRef, containerRef);
   const network = useNetwork();
   const selection = useSelection();
   const activeTool = useActiveTool();
@@ -39,7 +35,7 @@ export function EditorCanvas() {
   const [isPanning, setIsPanning] = useState(false);
   const [stageScale, setStageScale] = useState(1);
   const [stagePosition, setStagePosition] = useState<Vec2>({ x: 0, y: 0 });
-  const [canvasSize, setCanvasSize] = useState(DEFAULT_CANVAS_SIZE);
+  const [dimensions, setDimensions] = useState({ width: DEFAULT_CANVAS_SIZE.width, height: DEFAULT_CANVAS_SIZE.height });
   const addNode = useEditorStore((state) => state.addNode);
   const updateNodePosition = useEditorStore((state) => state.updateNodePosition);
   const selectNode = useEditorStore((state) => state.selectNode);
@@ -48,43 +44,29 @@ export function EditorCanvas() {
   const setLinkStartNode = useEditorStore((state) => state.setLinkStartNode);
   const completeLinkTo = useEditorStore((state) => state.completeLinkTo);
 
-  const viewportWidth = width > 0 ? width : DEFAULT_CANVAS_SIZE.width;
-  const viewportHeight = height > 0 ? height : DEFAULT_CANVAS_SIZE.height;
+  // Medir el contenedor solo una vez cuando cambia su tamaño real (resize del viewport)
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-  const stageWidth = Math.max(viewportWidth, canvasSize.width);
-  const stageHeight = Math.max(viewportHeight, canvasSize.height);
-
-  const ensureCanvasContainsPoint = useCallback((point: Vec2) => {
-    setCanvasSize((prev) => {
-      const nextWidth = Math.max(prev.width, point.x + CANVAS_GROWTH_PADDING);
-      const nextHeight = Math.max(prev.height, point.y + CANVAS_GROWTH_PADDING);
-      if (nextWidth === prev.width && nextHeight === prev.height) {
-        return prev;
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        // Usar contentRect que es más estable que clientWidth/Height
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          setDimensions({ width, height });
+        }
       }
-      return { width: nextWidth, height: nextHeight };
     });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
   }, []);
 
-  const ensureCanvasFitsView = useCallback(
-    (position: Vec2, scale: number) => {
-      if (scale <= 0) return;
-
-      setCanvasSize((prev) => {
-        const viewLeft = -position.x / scale;
-        const viewTop = -position.y / scale;
-        const viewRight = viewLeft + viewportWidth / scale;
-        const viewBottom = viewTop + viewportHeight / scale;
-
-        const nextWidth = Math.max(prev.width, viewRight + CANVAS_GROWTH_PADDING);
-        const nextHeight = Math.max(prev.height, viewBottom + CANVAS_GROWTH_PADDING);
-        if (nextWidth === prev.width && nextHeight === prev.height) {
-          return prev;
-        }
-        return { width: nextWidth, height: nextHeight };
-      });
-    },
-    [viewportWidth, viewportHeight]
-  );
+  const stageWidth = dimensions.width;
+  const stageHeight = dimensions.height;
 
   const verticalLines = useMemo(() => gridLines(50, stageWidth), [stageWidth]);
   const horizontalLines = useMemo(() => gridLines(50, stageHeight), [stageHeight]);
@@ -119,40 +101,6 @@ export function EditorCanvas() {
     };
   }, []);
 
-  useEffect(() => {
-    if (network.nodes.length > 0) return;
-
-    setCanvasSize((prev) => {
-      if (prev.width === DEFAULT_CANVAS_SIZE.width && prev.height === DEFAULT_CANVAS_SIZE.height) {
-        return prev;
-      }
-      return { ...DEFAULT_CANVAS_SIZE };
-    });
-  }, [network.nodes.length]);
-
-  useEffect(() => {
-    if (network.nodes.length === 0) return;
-
-    let maxX = 0;
-    let maxY = 0;
-
-    network.nodes.forEach((node) => {
-      const catalogItem = node.deviceId ? getCatalogItem(node.deviceId) : undefined;
-      const footprint =
-        catalogItem?.element === 'node'
-          ? catalogItem.defaults.footprint
-          : { width: 50, height: 50 };
-      const nodeHalfWidth = footprint.width / 2;
-      const nodeHalfHeight = footprint.height / 2;
-      const candidateX = node.position.x + nodeHalfWidth;
-      const candidateY = node.position.y + nodeHalfHeight;
-      if (candidateX > maxX) maxX = candidateX;
-      if (candidateY > maxY) maxY = candidateY;
-    });
-
-    ensureCanvasContainsPoint({ x: maxX, y: maxY });
-  }, [network.nodes, ensureCanvasContainsPoint]);
-
   const toStageCoordinates = (point: Vec2): Vec2 => ({
     x: (point.x - stagePosition.x) / stageScale,
     y: (point.y - stagePosition.y) / stageScale,
@@ -171,14 +119,6 @@ export function EditorCanvas() {
     };
     const position = toStageCoordinates(containerPoint);
     addNode(itemId, position);
-
-    const item = getCatalogItem(itemId);
-    const footprint =
-      item?.element === 'node' ? item.defaults.footprint : { width: 50, height: 50 };
-    ensureCanvasContainsPoint({
-      x: position.x + footprint.width / 2,
-      y: position.y + footprint.height / 2,
-    });
   };
 
   const handleDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
@@ -221,17 +161,16 @@ export function EditorCanvas() {
 
   return (
     <Box
-      ref={mergedRef}
+      ref={containerRef}
       style={{
         borderRadius: 8,
         border: '1px solid var(--mantine-color-gray-4)',
         position: 'relative',
         overflow: 'hidden',
         cursor: isShiftPressed ? (isPanning ? 'grabbing' : 'grab') : 'default',
-        width: '100%',
-        height: '100%',
         flex: 1,
         minHeight: 0,
+        minWidth: 0,
       }}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
@@ -259,7 +198,6 @@ export function EditorCanvas() {
           if (stage) {
             const position = stage.position();
             setStagePosition({ x: position.x, y: position.y });
-            ensureCanvasFitsView({ x: position.x, y: position.y }, stageScale);
           }
         }}
         onDragEnd={(event) => {
@@ -267,7 +205,6 @@ export function EditorCanvas() {
           if (stage) {
             const position = stage.position();
             setStagePosition({ x: position.x, y: position.y });
-            ensureCanvasFitsView({ x: position.x, y: position.y }, stageScale);
           }
           setIsPanning(false);
         }}
@@ -291,7 +228,6 @@ export function EditorCanvas() {
 
           setStageScale(newScale);
           setStagePosition(newPosition);
-          ensureCanvasFitsView(newPosition, newScale);
         }}
       >
         <Layer>
@@ -342,10 +278,6 @@ export function EditorCanvas() {
                 onDragEnd={(event) => {
                   const { x, y } = event.target.position();
                   updateNodePosition(node.id, { x, y });
-                  ensureCanvasContainsPoint({
-                    x: x + footprint.width / 2,
-                    y: y + footprint.height / 2,
-                  });
                 }}
                 onClick={() => handleNodeClick(node.id)}
               >

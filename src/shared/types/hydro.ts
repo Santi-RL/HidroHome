@@ -97,14 +97,22 @@ export interface HydroNetwork {
   links: HydroLink[];
 }
 
+/**
+ * Resultado instantáneo de un nodo en un timestep específico.
+ */
 export interface SimulationNodeResult {
   id: string;
   label: string;
   pressure: number;
   demand: number;
   head: number;
+  /** Nivel del tanque (si aplica), en metros o pies según sistema de unidades */
+  tankLevel?: number;
 }
 
+/**
+ * Resultado instantáneo de un enlace en un timestep específico.
+ */
 export interface SimulationLinkResult {
   id: string;
   label: string;
@@ -114,14 +122,57 @@ export interface SimulationLinkResult {
   headloss: number;
 }
 
+/**
+ * Colección de resultados en un instante temporal específico.
+ */
+export interface SimulationTimestep {
+  /** Tiempo transcurrido desde el inicio de la simulación en segundos */
+  time: number;
+  /** Resultados de todos los nodos en este timestep */
+  nodes: SimulationNodeResult[];
+  /** Resultados de todos los enlaces en este timestep */
+  links: SimulationLinkResult[];
+}
+
+/**
+ * Rangos globales min/max para escalar visualizaciones.
+ */
+export interface SimulationRanges {
+  pressure: { min: number; max: number };
+  flow: { min: number; max: number };
+  velocity: { min: number; max: number };
+  tankLevel?: { min: number; max: number };
+}
+
+/**
+ * Resultados completos de una simulación hidráulica.
+ * Incluye datos agregados (summary) y series temporales completas (timesteps).
+ */
 export interface SimulationResults {
   generatedAt: string;
+  /** Duración total simulada en segundos */
+  duration: number;
+  /** Intervalo de reporte entre timesteps en segundos */
+  reportStep: number;
+  /** Resumen agregado para compatibilidad con UI existente */
   summary: {
     maxPressure: number;
     minPressure: number;
     maxFlow: number;
   };
+  /** Rangos min/max globales para mapeo visual */
+  ranges: SimulationRanges;
+  /** Series temporales completas: array de estados en cada timestep */
+  timesteps: SimulationTimestep[];
+  /** 
+   * Vista instantánea del último timestep para compatibilidad retroactiva.
+   * @deprecated Usar timesteps[timesteps.length - 1] en su lugar.
+   */
   nodes: SimulationNodeResult[];
+  /**
+   * Vista instantánea del último timestep para compatibilidad retroactiva.
+   * @deprecated Usar timesteps[timesteps.length - 1] en su lugar.
+   */
   links: SimulationLinkResult[];
 }
 
