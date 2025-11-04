@@ -45,12 +45,12 @@ Ultima actualizacion: 2025-11-04
    - Flechas direccionales que muestran la dirección del flujo en cada tubería.
    - Tuberías más anchas (6-16px) y colores más brillantes (#3b82f6 a #f97316) para mejor visibilidad.
 
-9. [ ] Crear overlays y leyendas 2D
+9. [x] Crear overlays y leyendas 2D
    - Mostrar una leyenda actualizable con rangos de color/intensidad usados en el canvas.
    - Exponer badges o tooltips con datos clave del timestep para el elemento seleccionado.
-   - Incorporar alertas visuales persistentes para componentes cr�ticos.
+   - Incorporar alertas visuales persistentes para componentes críticos.
 
-10. [ ] Ajustes finales y preparaci�n para 3D
+10. [ ] Ajustes finales y preparación para 3D
    - Medir performance del canvas 2D con redes grandes y optimizar redibujado.
    - Documentar el flujo de simulaci�n 2D y dejar checklist para reactivar las tareas 3D en el futuro.
    - Reagendar las actividades 3D una vez validada la experiencia 2D.

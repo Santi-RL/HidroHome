@@ -30,6 +30,9 @@ import {
   lerp as lerpValue,
   type TransitionState,
 } from './transitionSystem';
+import { SimulationLegend } from './SimulationLegend';
+import { ElementTooltip } from './ElementTooltip';
+import { CriticalAlertsPanel } from './CriticalAlertsPanel';
 
 const DEFAULT_CANVAS_SIZE = { width: 1200, height: 720 };
 
@@ -195,6 +198,39 @@ export function EditorCanvas() {
     return map;
   }, [currentTimestep]);
 
+  // Datos del elemento seleccionado para el tooltip
+  const selectedElementData = useMemo(() => {
+    if (!selection || !currentTimestep) return null;
+
+    if (selection.type === 'node') {
+      const node = network.nodes.find((n) => n.id === selection.id);
+      const nodeResult = currentTimestep.nodes.find((r) => r.id === selection.id);
+      const style = nodeStyles[selection.id];
+      return {
+        selectedNode: node,
+        nodeResult,
+        isCritical: style?.isCritical || false,
+      };
+    }
+
+    if (selection.type === 'link') {
+      const link = network.links.find((l) => l.id === selection.id);
+      const linkResult = currentTimestep.links.find((r) => r.id === selection.id);
+      const style = linkStyles[selection.id];
+      const fromNode = link ? network.nodes.find((n) => n.id === link.from) : undefined;
+      const toNode = link ? network.nodes.find((n) => n.id === link.to) : undefined;
+      return {
+        selectedLink: link,
+        linkResult,
+        fromNode,
+        toNode,
+        isCritical: style?.isCritical || false,
+      };
+    }
+
+    return null;
+  }, [selection, currentTimestep, network.nodes, network.links, nodeStyles, linkStyles]);
+
   // Regenerar partículas cuando cambia el timestep
   useEffect(() => {
     if (!currentTimestep || !simulationRanges) {
@@ -344,6 +380,14 @@ export function EditorCanvas() {
   const handleLinkClick = (linkId: string) => {
     if (isShiftPressed) return;
     selectLink(linkId);
+  };
+
+  const handleAlertClick = (type: 'node' | 'link', id: string) => {
+    if (type === 'node') {
+      selectNode(id);
+    } else {
+      selectLink(id);
+    }
   };
 
   const activeTemplate = activeLinkTemplateId ? getCatalogItem(activeLinkTemplateId) : undefined;
@@ -744,6 +788,28 @@ export function EditorCanvas() {
             : 'Selecciona nodo origen'
           : 'Click para seleccionar'}
       </Box>
+      {/* Panel de alertas críticas */}
+      <CriticalAlertsPanel
+        nodes={network.nodes}
+        links={network.links}
+        currentTimestep={currentTimestep}
+        simulationRanges={simulationRanges || null}
+        onSelectElement={handleAlertClick}
+      />
+      {/* Leyenda de simulación */}
+      {currentTimestep && <SimulationLegend />}
+      {/* Tooltip de elemento seleccionado */}
+      {selectedElementData && (
+        <ElementTooltip
+          selectedNode={selectedElementData.selectedNode}
+          selectedLink={selectedElementData.selectedLink}
+          nodeResult={selectedElementData.nodeResult}
+          linkResult={selectedElementData.linkResult}
+          fromNode={selectedElementData.fromNode}
+          toNode={selectedElementData.toNode}
+          isCritical={selectedElementData.isCritical}
+        />
+      )}
     </Box>
   );
 }
