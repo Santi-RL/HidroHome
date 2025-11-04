@@ -20,12 +20,12 @@ export interface VisualStyleResult {
   intensity: number;
 }
 
-const DEFAULT_MIN_COLOR = '#2563eb';
-const DEFAULT_MAX_COLOR = '#f97316';
-const CRITICAL_COLOR = '#dc2626';
+const DEFAULT_MIN_COLOR = '#1e40af'; // Azul oscuro para mejor contraste con partículas claras
+const DEFAULT_MAX_COLOR = '#c2410c'; // Naranja oscuro (mejor contraste)
+const CRITICAL_COLOR = '#b91c1c'; // Rojo oscuro
 
-const MIN_WIDTH = 1.5;
-const MAX_WIDTH = 4.5;
+const MIN_WIDTH = 6; // Grosor mínimo aumentado para mejor visibilidad
+const MAX_WIDTH = 16; // Grosor máximo aumentado significativamente
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -131,7 +131,7 @@ export const computeLinkVisualStyle = (
     ? CRITICAL_COLOR
     : interpolateColor(DEFAULT_MIN_COLOR, DEFAULT_MAX_COLOR, intensity);
   const width = lerp(MIN_WIDTH, MAX_WIDTH, intensity);
-  const opacity = clamp(isCritical ? 0.95 : 0.6 + intensity * 0.4, 0.2, 1);
+  const opacity = clamp(isCritical ? 0.7 : 0.45 + intensity * 0.25, 0.45, 0.75); // Más transparente (0.45-0.75)
 
   return {
     color,

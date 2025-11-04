@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
 import { Box } from '@mantine/core';
-import { Layer, Line, Rect, Stage, Text as KonvaText, Group as KonvaGroup } from 'react-konva';
+import { Layer, Line, Rect, Stage, Text as KonvaText, Group as KonvaGroup, Circle } from 'react-konva';
 import { CATALOG_DRAG_DATA_KEY } from '../catalog/CatalogPanel';
 import { getCatalogItem } from '../../shared/constants/catalog';
 import {
@@ -16,6 +16,20 @@ import {
 import type { Vec2 } from '../../shared/types/math';
 import type { SimulationNodeResult } from '../../shared/types/hydro';
 import { computeLinkVisualStyle, computeNodeVisualStyle } from '../simulation/simulationVisualMapping';
+import {
+  createParticleSystem,
+  updateParticleSystem,
+  regenerateAllParticles,
+  getParticlePosition,
+  type ParticleSystemState,
+} from './flowParticles';
+import {
+  createTransition,
+  updateTransition,
+  lerpColor,
+  lerp as lerpValue,
+  type TransitionState,
+} from './transitionSystem';
 
 const DEFAULT_CANVAS_SIZE = { width: 1200, height: 720 };
 
@@ -48,6 +62,20 @@ export function EditorCanvas() {
   const [stageScale, setStageScale] = useState(1);
   const [stagePosition, setStagePosition] = useState<Vec2>({ x: 0, y: 0 });
   const [dimensions, setDimensions] = useState({ width: DEFAULT_CANVAS_SIZE.width, height: DEFAULT_CANVAS_SIZE.height });
+  const [particleSystem, setParticleSystem] = useState<ParticleSystemState>(createParticleSystem());
+  const [transition, setTransition] = useState<TransitionState>({
+    isTransitioning: false,
+    fromTimestepIndex: null,
+    toTimestepIndex: null,
+    progress: 1,
+    startTime: Date.now(),
+  });
+  const animationFrameRef = useRef<number | null>(null);
+  const prevTimestepIndexRef = useRef<number | null>(null);
+  const prevStylesRef = useRef<{
+    links: Record<string, ReturnType<typeof computeLinkVisualStyle>>;
+    nodes: Record<string, ReturnType<typeof computeNodeVisualStyle>>;
+  }>({ links: {}, nodes: {} });
   const addNode = useEditorStore((state) => state.addNode);
   const updateNodePosition = useEditorStore((state) => state.updateNodePosition);
   const selectNode = useEditorStore((state) => state.selectNode);
@@ -58,29 +86,105 @@ export function EditorCanvas() {
   const currentTimestep = useCurrentTimestep();
   const simulationRanges = useSimulationRanges();
 
+  // Detectar cambio de timestep e iniciar transición
+  useEffect(() => {
+    if (!currentTimestep) {
+      prevTimestepIndexRef.current = null;
+      return;
+    }
+
+    const currentTime = currentTimestep.time;
+    
+    if (prevTimestepIndexRef.current !== null && prevTimestepIndexRef.current !== currentTime) {
+      // Iniciar transición
+      setTransition(createTransition(prevTimestepIndexRef.current, currentTime));
+    }
+
+    prevTimestepIndexRef.current = currentTime;
+  }, [currentTimestep]);
+
+  // Loop de actualización de transición
+  useEffect(() => {
+    if (!transition.isTransitioning) {
+      return;
+    }
+
+    const animate = () => {
+      setTransition((prev) => updateTransition(prev));
+    };
+
+    const frameId = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [transition.isTransitioning]);
+
   const linkStyles = useMemo(() => {
     if (!currentTimestep || !simulationRanges) return {};
     const styles: Record<string, ReturnType<typeof computeLinkVisualStyle>> = {};
+    
     currentTimestep.links.forEach((link) => {
-      styles[link.id] = computeLinkVisualStyle(link, simulationRanges, {
+      const newStyle = computeLinkVisualStyle(link, simulationRanges, {
         metric: 'flow',
         highlightIssues: true,
       });
+
+      // Aplicar interpolación si hay transición activa
+      if (transition.isTransitioning && prevStylesRef.current.links[link.id]) {
+        const prevStyle = prevStylesRef.current.links[link.id];
+        styles[link.id] = {
+          color: lerpColor(prevStyle.color, newStyle.color, transition.progress),
+          width: lerpValue(prevStyle.width, newStyle.width, transition.progress),
+          opacity: lerpValue(prevStyle.opacity, newStyle.opacity, transition.progress),
+          isCritical: newStyle.isCritical,
+          intensity: lerpValue(prevStyle.intensity, newStyle.intensity, transition.progress),
+        };
+      } else {
+        styles[link.id] = newStyle;
+      }
     });
+
+    // Guardar estilos actuales para la próxima transición
+    if (!transition.isTransitioning) {
+      prevStylesRef.current.links = styles;
+    }
+
     return styles;
-  }, [currentTimestep, simulationRanges]);
+  }, [currentTimestep, simulationRanges, transition.isTransitioning, transition.progress]);
 
   const nodeStyles = useMemo(() => {
     if (!currentTimestep || !simulationRanges) return {};
     const styles: Record<string, ReturnType<typeof computeNodeVisualStyle>> = {};
+    
     currentTimestep.nodes.forEach((node) => {
-      styles[node.id] = computeNodeVisualStyle(node, simulationRanges, {
+      const newStyle = computeNodeVisualStyle(node, simulationRanges, {
         metric: typeof node.tankLevel === 'number' ? 'tankLevel' : 'pressure',
         highlightIssues: true,
       });
+
+      // Aplicar interpolación si hay transición activa
+      if (transition.isTransitioning && prevStylesRef.current.nodes[node.id]) {
+        const prevStyle = prevStylesRef.current.nodes[node.id];
+        styles[node.id] = {
+          color: lerpColor(prevStyle.color, newStyle.color, transition.progress),
+          width: lerpValue(prevStyle.width, newStyle.width, transition.progress),
+          opacity: lerpValue(prevStyle.opacity, newStyle.opacity, transition.progress),
+          isCritical: newStyle.isCritical,
+          intensity: lerpValue(prevStyle.intensity, newStyle.intensity, transition.progress),
+        };
+      } else {
+        styles[node.id] = newStyle;
+      }
     });
+
+    // Guardar estilos actuales para la próxima transición
+    if (!transition.isTransitioning) {
+      prevStylesRef.current.nodes = styles;
+    }
+
     return styles;
-  }, [currentTimestep, simulationRanges]);
+  }, [currentTimestep, simulationRanges, transition.isTransitioning, transition.progress]);
 
   const nodeResultMap = useMemo(() => {
     if (!currentTimestep) return {};
@@ -90,6 +194,45 @@ export function EditorCanvas() {
     });
     return map;
   }, [currentTimestep]);
+
+  // Regenerar partículas cuando cambia el timestep
+  useEffect(() => {
+    if (!currentTimestep || !simulationRanges) {
+      setParticleSystem(createParticleSystem());
+      return;
+    }
+
+    const linkResultsMap = new Map(currentTimestep.links.map((link) => [link.id, link]));
+    const nodesMap = new Map(network.nodes.map((node) => [node.id, node]));
+    const stylesMap = new Map(Object.entries(linkStyles).map(([id, style]) => [id, style]));
+
+    const particles = regenerateAllParticles(network.links, linkResultsMap, nodesMap, stylesMap);
+
+    setParticleSystem({
+      particles,
+      lastUpdateTime: Date.now(),
+    });
+  }, [currentTimestep, simulationRanges, network.links, network.nodes, linkStyles]);
+
+  // Loop de animación para actualizar partículas
+  useEffect(() => {
+    if (!currentTimestep || particleSystem.particles.length === 0) {
+      return;
+    }
+
+    const animate = () => {
+      setParticleSystem((prev) => updateParticleSystem(prev, 1 / 60)); // 60 FPS
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [currentTimestep, particleSystem.particles.length]);
 
   // Medir el contenedor solo una vez cuando cambia su tamaño real (resize del viewport)
   useEffect(() => {
@@ -296,21 +439,66 @@ export function EditorCanvas() {
             const stroke = style?.color ?? item?.color ?? '#0f172a';
             const isSelected = selection?.type === 'link' && selection.id === link.id;
             const strokeWidth = (style?.width ?? 4) + (isSelected ? 1.5 : 0);
+
+            // Calcular dirección del flujo para las flechas
+            const linkResult = currentTimestep?.links.find((lr) => lr.id === link.id);
+            const hasFlow = linkResult && Math.abs(linkResult.flow) > 0.001;
+            const flowReversed = linkResult && linkResult.flow < 0;
+
+            // Calcular puntos para las flechas (en el punto medio del enlace)
+            const dx = toNode.position.x - fromNode.position.x;
+            const dy = toNode.position.y - fromNode.position.y;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+            
+            // Posición de la flecha (en el centro de la tubería)
+            const arrowX = fromNode.position.x + dx * 0.5;
+            const arrowY = fromNode.position.y + dy * 0.5;
+            
+            // Tamaño de la flecha basado en el grosor de la tubería
+            const arrowSize = Math.max(8, strokeWidth * 1.5);
+            
+            // Calcular puntos de la flecha (triángulo)
+            const arrowAngle = flowReversed ? angle + Math.PI : angle;
+            const arrowPoints = [
+              // Punta de la flecha
+              arrowX + Math.cos(arrowAngle) * arrowSize,
+              arrowY + Math.sin(arrowAngle) * arrowSize,
+              // Base izquierda
+              arrowX + Math.cos(arrowAngle + Math.PI * 2.5 / 3) * arrowSize * 0.7,
+              arrowY + Math.sin(arrowAngle + Math.PI * 2.5 / 3) * arrowSize * 0.7,
+              // Base derecha
+              arrowX + Math.cos(arrowAngle - Math.PI * 2.5 / 3) * arrowSize * 0.7,
+              arrowY + Math.sin(arrowAngle - Math.PI * 2.5 / 3) * arrowSize * 0.7,
+            ];
+
             return (
-              <Line
-                key={link.id}
-                points={[fromNode.position.x, fromNode.position.y, toNode.position.x, toNode.position.y]}
-                stroke={stroke}
-                strokeWidth={strokeWidth}
-                opacity={style?.opacity ?? 0.85}
-                lineCap="round"
-                hitStrokeWidth={20}
-                dash={link.type === 'valve' ? [12, 6] : undefined}
-                shadowColor={style?.isCritical ? '#f87171' : undefined}
-                shadowBlur={style?.isCritical ? 12 : 0}
-                shadowOpacity={style?.isCritical ? 0.9 : 0}
-                onClick={() => handleLinkClick(link.id)}
-              />
+              <KonvaGroup key={link.id}>
+                <Line
+                  points={[fromNode.position.x, fromNode.position.y, toNode.position.x, toNode.position.y]}
+                  stroke={stroke}
+                  strokeWidth={strokeWidth}
+                  opacity={style?.opacity ?? 0.85}
+                  lineCap="round"
+                  hitStrokeWidth={20}
+                  dash={link.type === 'valve' ? [12, 6] : undefined}
+                  shadowColor={style?.isCritical ? '#f87171' : undefined}
+                  shadowBlur={style?.isCritical ? 12 : 0}
+                  shadowOpacity={style?.isCritical ? 0.9 : 0}
+                  onClick={() => handleLinkClick(link.id)}
+                />
+                {/* Flecha direccional del flujo */}
+                {hasFlow && length > 40 && (
+                  <Line
+                    points={arrowPoints}
+                    closed
+                    fill={stroke}
+                    opacity={(style?.opacity ?? 0.85) * 0.9}
+                    strokeWidth={0}
+                    listening={false}
+                  />
+                )}
+              </KonvaGroup>
             );
           })}
           {network.nodes.map((node) => {
@@ -360,6 +548,73 @@ export function EditorCanvas() {
                   shadowOpacity={style?.isCritical ? 0.9 : 0}
                   shadowBlur={style?.isCritical ? 16 : 0}
                 />
+                {/* Indicador de nivel de tanque */}
+                {node.type === 'tank' && nodeResult && typeof nodeResult.tankLevel === 'number' && simulationRanges?.tankLevel && (
+                  <>
+                    {/* Contenedor del indicador de nivel */}
+                    <Rect
+                      x={-footprint.width / 2 + 8}
+                      y={-footprint.height / 2 + 8}
+                      width={12}
+                      height={footprint.height - 16}
+                      fill="rgba(255, 255, 255, 0.3)"
+                      cornerRadius={4}
+                      stroke="rgba(255, 255, 255, 0.6)"
+                      strokeWidth={1.5}
+                    />
+                    {/* Nivel de agua (relleno desde abajo) */}
+                    {(() => {
+                      const levelRange = simulationRanges.tankLevel;
+                      const minLevel = levelRange.min;
+                      const maxLevel = levelRange.max;
+                      const levelPercent = maxLevel > minLevel 
+                        ? Math.max(0, Math.min(1, (nodeResult.tankLevel - minLevel) / (maxLevel - minLevel)))
+                        : 0.5;
+                      const barHeight = (footprint.height - 16) * levelPercent;
+                      const barY = -footprint.height / 2 + 8 + (footprint.height - 16 - barHeight);
+                      
+                      // Color del agua basado en el nivel
+                      const waterColor = levelPercent > 0.7 
+                        ? '#3b82f6' // Azul brillante (nivel alto)
+                        : levelPercent > 0.3 
+                        ? '#06b6d4' // Cyan (nivel medio)
+                        : '#f59e0b'; // Ámbar (nivel bajo)
+                      
+                      return barHeight > 0 ? (
+                        <Rect
+                          x={-footprint.width / 2 + 8}
+                          y={barY}
+                          width={12}
+                          height={barHeight}
+                          fill={waterColor}
+                          cornerRadius={4}
+                          opacity={0.85}
+                        />
+                      ) : null;
+                    })()}
+                    {/* Texto del nivel */}
+                    <Rect
+                      x={footprint.width / 2 - 50}
+                      y={-footprint.height / 2 + 8}
+                      width={42}
+                      height={20}
+                      fill="rgba(15, 23, 42, 0.85)"
+                      cornerRadius={4}
+                    />
+                    <KonvaText
+                      text={`${formatNumberAR(nodeResult.tankLevel, 1)}m`}
+                      fontSize={10}
+                      fontStyle="bold"
+                      fill="white"
+                      align="center"
+                      verticalAlign="middle"
+                      width={42}
+                      height={20}
+                      x={footprint.width / 2 - 50}
+                      y={-footprint.height / 2 + 8}
+                    />
+                  </>
+                )}
                 {/* Label con fondo */}
                 <Rect
                   x={-65}
@@ -427,6 +682,31 @@ export function EditorCanvas() {
                   </>
                 )}
               </KonvaGroup>
+            );
+          })}
+          {/* Partículas de flujo animadas */}
+          {particleSystem.particles.map((particle) => {
+            const link = network.links.find((l) => l.id === particle.linkId);
+            if (!link) return null;
+            const fromNode = network.nodes.find((node) => node.id === link.from);
+            const toNode = network.nodes.find((node) => node.id === link.to);
+            if (!fromNode || !toNode) return null;
+            
+            const position = getParticlePosition(particle, fromNode, toNode);
+            
+            return (
+              <Circle
+                key={particle.id}
+                x={position.x}
+                y={position.y}
+                radius={particle.size}
+                fill={particle.color}
+                opacity={particle.opacity}
+                shadowColor="#ffffff"
+                shadowBlur={12}
+                shadowOpacity={0.8}
+                listening={false}
+              />
             );
           })}
           {activeTool === 'connect' && linkStartNodeId && cursorPosition && (

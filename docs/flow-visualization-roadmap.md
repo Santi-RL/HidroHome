@@ -38,10 +38,12 @@ Ultima actualizacion: 2025-11-04
    - Sincronizar el canvas con `useCurrentTimestep` para refrescar estilos al avanzar la simulaci�n.
    - A�adir estados destacados para elementos cr�ticos directamente en 2D.
 
-8. [ ] Implementar animaciones de flujo en 2D
-   - Dibujar part�culas o trazos que recorran cada enlace en funci�n del flujo y velocidad del timestep actual.
+8. [x] Implementar animaciones de flujo en 2D
+   - Dibujar partículas o trazos que recorran cada enlace en función del flujo y velocidad del timestep actual.
    - Representar niveles de tanque mediante rellenos o indicadores verticales sobre los nodos de tipo tanque.
-   - A�adir transiciones suaves entre timesteps para evitar saltos bruscos.
+   - Añadir transiciones suaves entre timesteps para evitar saltos bruscos.
+   - Flechas direccionales que muestran la dirección del flujo en cada tubería.
+   - Tuberías más anchas (6-16px) y colores más brillantes (#3b82f6 a #f97316) para mejor visibilidad.
 
 9. [ ] Crear overlays y leyendas 2D
    - Mostrar una leyenda actualizable con rangos de color/intensidad usados en el canvas.
