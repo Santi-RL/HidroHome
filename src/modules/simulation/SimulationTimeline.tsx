@@ -22,6 +22,14 @@ import {
 } from '../../shared/state/editorStore';
 import { formatSeconds, secondsFromIndex } from '../../shared/utils/time';
 
+// Formato de número argentino: punto para miles, coma para decimales
+const formatNumberAR = (value: number, decimals: number = 2): string => {
+  const fixed = value.toFixed(decimals);
+  const [integer, decimal] = fixed.split('.');
+  const formattedInteger = integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return decimal ? `${formattedInteger},${decimal}` : formattedInteger;
+};
+
 const SPEED_OPTIONS = [
   { label: '0.25×', value: '0.25' },
   { label: '0.5×', value: '0.5' },
@@ -173,7 +181,7 @@ export function SimulationTimeline() {
         />
       </Group>
 
-      <Stack gap={4}>
+      <Stack gap={12}>
         <Slider
           min={0}
           max={Math.max(totalTimesteps - 1, 0)}
@@ -181,29 +189,26 @@ export function SimulationTimeline() {
           value={currentIndex}
           onChange={handleSliderChange}
           disabled={isSliderDisabled}
-          marks={
-            hasTimesteps
-              ? [
-                  { value: 0, label: 'Inicio' },
-                  { value: Math.max(totalTimesteps - 1, 0), label: 'Final' },
-                ]
-              : undefined
-          }
+          styles={{
+            root: {
+              marginBottom: '8px',
+            },
+          }}
         />
-        <Group justify="space-between" gap="xs">
-          <Text size="xs" c="dimmed">
+        <Group justify="space-between" gap="xs" mt={8}>
+          <Text size="xs" c="dimmed" fw={500}>
             Paso {hasTimesteps ? currentIndex + 1 : 0} de {totalTimesteps}
           </Text>
-          <Text size="xs" c="dimmed">
+          <Text size="xs" c="dimmed" fw={500}>
             {formattedCurrentTime} / {formattedDuration}
           </Text>
         </Group>
       </Stack>
 
       {ranges && (
-        <Text size="xs" c="dimmed">
-          Presión: {ranges.pressure.min.toFixed(2)} → {ranges.pressure.max.toFixed(2)} | Caudal:{' '}
-          {ranges.flow.min.toFixed(3)} → {ranges.flow.max.toFixed(3)}
+        <Text size="xs" c="dimmed" mt={4}>
+          Presión: {formatNumberAR(ranges.pressure.min, 2)} → {formatNumberAR(ranges.pressure.max, 2)} | Caudal:{' '}
+          {formatNumberAR(ranges.flow.min, 4)} → {formatNumberAR(ranges.flow.max, 4)}
         </Text>
       )}
     </Stack>

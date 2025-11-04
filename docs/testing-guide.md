@@ -101,5 +101,5 @@ testUsePlaybackControls()     // Hook de controles
 
 ## 🎉 Siguiente Paso
 
-Con el Punto 6 completado y verificado, estamos listos para:
-**Punto 7: Evolucionar el visor 3D hacia un motor reactivo**
+Con el Punto 7 completado y verificado, estamos listos para:
+**Punto 8: Implementar animaciones de flujo en 2D**

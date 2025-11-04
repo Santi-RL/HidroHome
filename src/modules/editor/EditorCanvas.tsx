@@ -6,12 +6,16 @@ import { getCatalogItem } from '../../shared/constants/catalog';
 import {
   useActiveLinkTemplateId,
   useActiveTool,
+  useCurrentTimestep,
   useEditorStore,
   useLinkStartNodeId,
   useNetwork,
   useSelection,
+  useSimulationRanges,
 } from '../../shared/state/editorStore';
 import type { Vec2 } from '../../shared/types/math';
+import type { SimulationNodeResult } from '../../shared/types/hydro';
+import { computeLinkVisualStyle, computeNodeVisualStyle } from '../simulation/simulationVisualMapping';
 
 const DEFAULT_CANVAS_SIZE = { width: 1200, height: 720 };
 
@@ -21,6 +25,14 @@ const gridLines = (size: number, max: number): number[] => {
     lines.push(i);
   }
   return lines;
+};
+
+// Formato de número argentino: punto para miles, coma para decimales
+const formatNumberAR = (value: number, decimals: number = 2): string => {
+  const fixed = value.toFixed(decimals);
+  const [integer, decimal] = fixed.split('.');
+  const formattedInteger = integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return decimal ? `${formattedInteger},${decimal}` : formattedInteger;
 };
 
 export function EditorCanvas() {
@@ -43,6 +55,41 @@ export function EditorCanvas() {
   const clearSelection = useEditorStore((state) => state.clearSelection);
   const setLinkStartNode = useEditorStore((state) => state.setLinkStartNode);
   const completeLinkTo = useEditorStore((state) => state.completeLinkTo);
+  const currentTimestep = useCurrentTimestep();
+  const simulationRanges = useSimulationRanges();
+
+  const linkStyles = useMemo(() => {
+    if (!currentTimestep || !simulationRanges) return {};
+    const styles: Record<string, ReturnType<typeof computeLinkVisualStyle>> = {};
+    currentTimestep.links.forEach((link) => {
+      styles[link.id] = computeLinkVisualStyle(link, simulationRanges, {
+        metric: 'flow',
+        highlightIssues: true,
+      });
+    });
+    return styles;
+  }, [currentTimestep, simulationRanges]);
+
+  const nodeStyles = useMemo(() => {
+    if (!currentTimestep || !simulationRanges) return {};
+    const styles: Record<string, ReturnType<typeof computeNodeVisualStyle>> = {};
+    currentTimestep.nodes.forEach((node) => {
+      styles[node.id] = computeNodeVisualStyle(node, simulationRanges, {
+        metric: typeof node.tankLevel === 'number' ? 'tankLevel' : 'pressure',
+        highlightIssues: true,
+      });
+    });
+    return styles;
+  }, [currentTimestep, simulationRanges]);
+
+  const nodeResultMap = useMemo(() => {
+    if (!currentTimestep) return {};
+    const map: Record<string, SimulationNodeResult> = {};
+    currentTimestep.nodes.forEach((result) => {
+      map[result.id] = result;
+    });
+    return map;
+  }, [currentTimestep]);
 
   // Medir el contenedor solo una vez cuando cambia su tamaño real (resize del viewport)
   useEffect(() => {
@@ -245,30 +292,48 @@ export function EditorCanvas() {
             const toNode = network.nodes.find((node) => node.id === link.to);
             if (!fromNode || !toNode) return null;
             const item = link.deviceId ? getCatalogItem(link.deviceId) : undefined;
-            const stroke = item?.color ?? '#0f172a';
+            const style = linkStyles[link.id];
+            const stroke = style?.color ?? item?.color ?? '#0f172a';
             const isSelected = selection?.type === 'link' && selection.id === link.id;
+            const strokeWidth = (style?.width ?? 4) + (isSelected ? 1.5 : 0);
             return (
               <Line
                 key={link.id}
                 points={[fromNode.position.x, fromNode.position.y, toNode.position.x, toNode.position.y]}
                 stroke={stroke}
-                strokeWidth={isSelected ? 5 : 4}
+                strokeWidth={strokeWidth}
+                opacity={style?.opacity ?? 0.85}
                 lineCap="round"
                 hitStrokeWidth={20}
                 dash={link.type === 'valve' ? [12, 6] : undefined}
+                shadowColor={style?.isCritical ? '#f87171' : undefined}
+                shadowBlur={style?.isCritical ? 12 : 0}
+                shadowOpacity={style?.isCritical ? 0.9 : 0}
                 onClick={() => handleLinkClick(link.id)}
               />
             );
           })}
           {network.nodes.map((node) => {
             const catalogItem = node.deviceId ? getCatalogItem(node.deviceId) : undefined;
-            const fill = catalogItem?.color ?? '#2563eb';
+            const style = nodeStyles[node.id];
+            const fill = style?.color ?? catalogItem?.color ?? '#2563eb';
             const footprint =
               catalogItem?.element === 'node'
                 ? catalogItem.defaults.footprint
                 : { width: 50, height: 50 };
             const isSelected = selection?.type === 'node' && selection.id === node.id;
             const isLinkStart = linkStartNodeId === node.id;
+            const baseOpacity = style?.opacity ?? 0.75;
+            const nodeResult = nodeResultMap[node.id];
+            const pressureText =
+              nodeResult && Number.isFinite(nodeResult.pressure)
+                ? `Presión: ${formatNumberAR(nodeResult.pressure, 2)} kPa`
+                : 'Presión: --';
+            const demandLps =
+              nodeResult && Number.isFinite(nodeResult.demand)
+                ? nodeResult.demand
+                : node.baseDemand * 1000;
+            const demandText = `Demanda: ${formatNumberAR(demandLps, 3)} L/s`;
             return (
               <KonvaGroup
                 key={node.id}
@@ -287,28 +352,80 @@ export function EditorCanvas() {
                   width={footprint.width}
                   height={footprint.height}
                   fill={fill}
-                  opacity={isSelected ? 0.9 : 0.75}
+                  opacity={isSelected ? Math.min(baseOpacity + 0.2, 1) : baseOpacity}
                   cornerRadius={8}
-                  stroke={isSelected ? '#0f172a' : isLinkStart ? activeTemplateColor : 'transparent'}
+                  stroke={isSelected ? '#0f172a' : isLinkStart ? activeTemplateColor : style?.isCritical ? '#dc2626' : 'transparent'}
                   strokeWidth={isSelected || isLinkStart ? 3 : 0}
+                  shadowColor={style?.isCritical ? '#f87171' : undefined}
+                  shadowOpacity={style?.isCritical ? 0.9 : 0}
+                  shadowBlur={style?.isCritical ? 16 : 0}
+                />
+                {/* Label con fondo */}
+                <Rect
+                  x={-65}
+                  y={footprint.height / 2 + 8}
+                  width={130}
+                  height={22}
+                  fill="white"
+                  opacity={0.95}
+                  cornerRadius={4}
+                  shadowColor="rgba(0,0,0,0.15)"
+                  shadowBlur={6}
+                  shadowOffsetY={2}
                 />
                 <KonvaText
                   text={node.label}
-                  fontSize={14}
+                  fontSize={13}
+                  fontStyle="bold"
                   fill="#0f172a"
                   align="center"
-                  width={footprint.width}
-                  x={-footprint.width / 2}
-                  y={footprint.height / 2 + 6}
+                  verticalAlign="middle"
+                  width={130}
+                  height={22}
+                  x={-65}
+                  y={footprint.height / 2 + 8}
                 />
-                <KonvaText
-                  text={`Demand: ${(node.baseDemand * 1000).toFixed(2)} L/s`}
-                  fontSize={12}
-                  fill="#1e293b"
-                  width={footprint.width}
-                  x={-footprint.width / 2}
-                  y={footprint.height / 2 + 22}
-                />
+                {/* Datos de simulación con fondo */}
+                {nodeResult && (
+                  <>
+                    <Rect
+                      x={-65}
+                      y={footprint.height / 2 + 36}
+                      width={130}
+                      height={node.type === 'fixture' || node.baseDemand > 0 ? 44 : 22}
+                      fill="white"
+                      opacity={0.9}
+                      cornerRadius={4}
+                      shadowColor="rgba(0,0,0,0.12)"
+                      shadowBlur={4}
+                      shadowOffsetY={2}
+                    />
+                    <KonvaText
+                      text={pressureText}
+                      fontSize={11}
+                      fill="#1e293b"
+                      align="center"
+                      verticalAlign="middle"
+                      width={130}
+                      height={22}
+                      x={-65}
+                      y={footprint.height / 2 + 36}
+                    />
+                    {(node.type === 'fixture' || node.baseDemand > 0) && (
+                      <KonvaText
+                        text={demandText}
+                        fontSize={10}
+                        fill="#475569"
+                        align="center"
+                        verticalAlign="middle"
+                        width={130}
+                        height={22}
+                        x={-65}
+                        y={footprint.height / 2 + 58}
+                      />
+                    )}
+                  </>
+                )}
               </KonvaGroup>
             );
           })}

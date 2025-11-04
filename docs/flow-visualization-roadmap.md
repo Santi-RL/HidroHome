@@ -1,54 +1,54 @@
-# Hoja de ruta animacion hidraulica
+# Hoja de ruta animaci�n hidr�ulica 2D
 
 Ultima actualizacion: 2025-11-04
 
 1. [x] Definir nuevo modelo de resultados con series temporales
    - Extendido `SimulationResults` en `src/shared/types/hydro.ts` con timesteps, rangos, duration y reportStep
    - Agregados selectors `useCurrentTimestep`, `useSimulationRanges` y `usePlaybackControls` en `src/shared/state/editorStore.ts`
-   - Creado sistema de migración automática en `src/shared/utils/simulationMigration.ts`
-   - Estado de reproducción (play/pause, velocidad, timestep actual) integrado en el store
+   - Creado sistema de migraci�n autom�tica en `src/shared/utils/simulationMigration.ts`
+   - Estado de reproducci�n (play/pause, velocidad, timestep actual) integrado en el store
 
-2. [x] Ajustar la configuracion de EPANET para simulaciones transitorias
-   - Actualizar `src/modules/simulation/inpBuilder.ts` para exponer duracion, intervalo hidraulico y de reporte (por ahora constantes razonables, luego configurables).
-   - Garantizar que tanques, bombas y patrones tengan parametros por defecto compatibles con simulaciones de varias horas.
-   - Exponer utilidades para transformar unidades si se modifica la resolucion temporal.
+2. [x] Ajustar la configuraci�n de EPANET para simulaciones transitorias
+   - Actualizar `src/modules/simulation/inpBuilder.ts` para exponer duraci�n, intervalo hidr�ulico y de reporte (por ahora constantes razonables, luego configurables).
+   - Garantizar que tanques, bombas y patrones tengan par�metros por defecto compatibles con simulaciones de varias horas.
+   - Exponer utilidades para transformar unidades si se modifica la resoluci�n temporal.
 
 3. [x] Capturar series temporales completas en `epanet.worker.ts`
    - Reemplazado `solveH` por el ciclo `openH / initH / runH / nextH` para obtener cada timestep antes de cerrar el proyecto.
-   - Serializados por timestep nodos (presion, demanda, head, nivel de tanque) y enlaces (flujo, velocidad, headloss, estado) con su marca temporal acumulada.
-   - Calculados resúmenes globales (rangos, max/min) y preservadas las vistas legacy (`nodes`, `links`) apuntando al último timestep.
+   - Serializados por timestep nodos (presi�n, demanda, head, nivel de tanque) y enlaces (flujo, velocidad, headloss, estado) con su marca temporal acumulada.
+   - Calculados res�menes globales (rangos, max/min) y preservadas las vistas legacy (`nodes`, `links`) apuntando al �ltimo timestep.
 
 4. [x] Actualizar `useSimulationRunner` y el store para manejar series
-   - Validar la nueva estructura antes de persistir y limpiar el estado pendiente al iniciar una simulacion.
+   - Validar la nueva estructura antes de persistir y limpiar el estado pendiente al iniciar una simulaci�n.
    - Propagar el timestep inicial (0) a la UI y al viewer 3D; agregar acciones en el store para seleccionar un timestep o reproducir animaciones.
-   - Revisar `SimulationPanel.tsx` para mostrar mensajes utiles cuando la simulacion no devuelve data temporal.
+   - Revisar `SimulationPanel.tsx` para mostrar mensajes �tiles cuando la simulaci�n no devuelve data temporal.
 
 5. [x] Crear servicios de mapeo de datos a propiedades visuales
-   - Implementado `simulationVisualMapping.ts` con helpers para colores, grosores, opacidades y deteccion de criticidad.
-   - Definidas escalas compartidas y generadores de leyenda en base a los rangos globales de la simulacion.
-   - Explicado el uso del modulo en la documentacion y preparado para reutilizacion en las vistas 2D/3D.
+   - Implementado `simulationVisualMapping.ts` con helpers para colores, grosores, opacidades y detecci�n de criticidad.
+   - Definidas escalas compartidas y generadores de leyenda en base a los rangos globales de la simulaci�n.
+   - Explicado el uso del m�dulo en la documentaci�n y preparado para reutilizaci�n en las vistas 2D/3D.
 
-6. [x] Construir un reproductor de simulacion en la UI
+6. [x] Construir un reproductor de simulaci�n en la UI
    - Dise�ado `SimulationTimeline` con play/pause, slider y selector de velocidad apoyado en `usePlaybackControls`.
    - Integrado en `SimulationPanel.tsx`, sincronizado con el store y con el overlay temporal del visor 3D.
-   - Reproducci�n automatica que se detiene al final y expone tiempos transcurridos/duracion para futuros overlays.
+   - Reproducci�n autom�tica que se detiene al final y expone tiempos transcurridos/duraci�n para futuros overlays.
 
-7. [ ] Evolucionar el visor 3D hacia un motor reactivo
-   - Evaluar migrar `Simple3DViewer.tsx` a `@react-three/fiber` + `@react-three/drei` para facilitar animaciones y controles, o encapsular un loop propio si se mantiene Three.js puro.
-   - Reestructurar la escena para derivar la geometria base del network y aplicar materiales dinamicos provenientes del mapper del paso 5.
-   - Incorporar controles de camara (`OrbitControls`), ajuste de luces y resize responsivo sin fugas.
+7. [x] Integrar el mapeo visual en el canvas 2D (`EditorCanvas`)
+   - Aplicar `computeLinkVisualStyle` y `computeNodeVisualStyle` para colorear tuber�as y nodos seg�n presi�n/caudal.
+   - Sincronizar el canvas con `useCurrentTimestep` para refrescar estilos al avanzar la simulaci�n.
+   - A�adir estados destacados para elementos cr�ticos directamente en 2D.
 
-8. [ ] Implementar animaciones de flujo y niveles
-   - Anadir particulas o shaders simples que recorran cada tuberia segun el flujo actual y que cambien de velocidad con cada timestep.
-   - Animar el nivel de los tanques mediante escalado o clip de la geometria y mostrar el sentido del flujo con flechas o texturas desplazadas.
-   - Representar el caudal de los artefactos (fixtures) con emision visual al alcanzar consumos relevantes.
+8. [ ] Implementar animaciones de flujo en 2D
+   - Dibujar part�culas o trazos que recorran cada enlace en funci�n del flujo y velocidad del timestep actual.
+   - Representar niveles de tanque mediante rellenos o indicadores verticales sobre los nodos de tipo tanque.
+   - A�adir transiciones suaves entre timesteps para evitar saltos bruscos.
 
-9. [ ] Integrar overlays y leyendas de diagnostico
-   - Superponer una leyenda que explique colores o umbrales, junto con indicadores de presion minima, maxima y zonas criticas.
-   - Mostrar alertas en la UI cuando se detecten problemas (por ejemplo tanque vacio o presion negativa) durante la reproduccion.
-   - Permitir que el usuario centre la camara en elementos con fallas directamente desde el panel de resultados.
+9. [ ] Crear overlays y leyendas 2D
+   - Mostrar una leyenda actualizable con rangos de color/intensidad usados en el canvas.
+   - Exponer badges o tooltips con datos clave del timestep para el elemento seleccionado.
+   - Incorporar alertas visuales persistentes para componentes cr�ticos.
 
-10. [ ] Validar rendimiento y experiencia completa
-   - Probar con redes de distinto tamano para asegurar 60fps; aplicar instancing o LOD si es necesario.
-   - Anadir herramientas de depuracion (por ejemplo visualizar timestep actual y stats) activables solo en desarrollo.
-   - Documentar en `README.md` el flujo de simulacion animada y actualizar los ejemplos de proyecto para incluir series temporales.
+10. [ ] Ajustes finales y preparaci�n para 3D
+   - Medir performance del canvas 2D con redes grandes y optimizar redibujado.
+   - Documentar el flujo de simulaci�n 2D y dejar checklist para reactivar las tareas 3D en el futuro.
+   - Reagendar las actividades 3D una vez validada la experiencia 2D.

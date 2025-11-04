@@ -10,6 +10,14 @@ import { UNIT_SYSTEMS } from '../../shared/types/hydro';
 import { SimulationTimeline } from './SimulationTimeline';
 import { formatSeconds } from '../../shared/utils/time';
 
+// Formato de número argentino: punto para miles, coma para decimales
+const formatNumberAR = (value: number, decimals: number = 2): string => {
+  const fixed = value.toFixed(decimals);
+  const [integer, decimal] = fixed.split('.');
+  const formattedInteger = integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return decimal ? `${formattedInteger},${decimal}` : formattedInteger;
+};
+
 export function SimulationPanel() {
   const simulation = useSimulationState();
   const unitSystem = useUnitSystem();
@@ -87,15 +95,15 @@ export function SimulationPanel() {
             <Table.Tbody>
               <Table.Tr>
                 <Table.Td>Presion maxima</Table.Td>
-                <Table.Td>{simulation.results.summary.maxPressure.toFixed(2)} {units.pressure}</Table.Td>
+                <Table.Td>{formatNumberAR(simulation.results.summary.maxPressure, 2)} {units.pressure}</Table.Td>
               </Table.Tr>
               <Table.Tr>
                 <Table.Td>Presion minima</Table.Td>
-                <Table.Td>{simulation.results.summary.minPressure.toFixed(2)} {units.pressure}</Table.Td>
+                <Table.Td>{formatNumberAR(simulation.results.summary.minPressure, 2)} {units.pressure}</Table.Td>
               </Table.Tr>
               <Table.Tr>
                 <Table.Td>Caudal maximo</Table.Td>
-                <Table.Td>{simulation.results.summary.maxFlow.toFixed(3)} {units.flow}</Table.Td>
+                <Table.Td>{formatNumberAR(simulation.results.summary.maxFlow, 3)} {units.flow}</Table.Td>
               </Table.Tr>
               {hasSeries && (
                 <>

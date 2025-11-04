@@ -347,3 +347,14 @@ Con el Punto 5 cubierto, la UI puede comenzar a visualizar el comportamiento hid
 El componente `SimulationTimeline` (`src/modules/simulation/SimulationTimeline.tsx`) ofrece controles de reproducción (play/pause, paso anterior/siguiente), selección de timestep vía slider y ajuste de velocidad (`0.25×` a `4×`). Se sincroniza con el store (`usePlaybackControls`) y actualiza automáticamente el timestep activo respetando el `reportStep` definido por EPANET.
 
 La reproducción se detiene al alcanzar el último timestep y puedes ajustar la velocidad sin perder la posición actual. El componente expone además información de tiempo transcurrido versus duración total, y utiliza los rangos globales para ofrecer contexto rápido antes de mapear valores en 2D/3D.
+
+> Nota: la hoja de ruta actual prioriza la visualizacion 2D. Las capacidades 3D se retomaran una vez que el canvas 2D muestre correctamente el flujo animado.
+
+## Integracion en el canvas 2D
+
+- `EditorCanvas.tsx` consume `useCurrentTimestep` y `useSimulationRanges` para refrescar estilos cuando avanza la timeline.
+- `computeLinkVisualStyle` colorea tuberias, ajusta grosor y resalta enlaces criticos (sin flujo/velocidad baja).
+- `computeNodeVisualStyle` modula la apariencia de nodos segun presion o nivel de tanque y muestra lecturas en tiempo real.
+- Siempre que no haya resultados se mantiene el estilo neutro original.
+
+> Nota: la hoja de ruta actual prioriza la visualizacion 2D. Las capacidades 3D se retomaran una vez que el canvas 2D muestre correctamente el flujo animado.
