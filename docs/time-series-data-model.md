@@ -302,3 +302,48 @@ Con este modelo implementado, los siguientes pasos son:
 - **Performance**: Con timesteps grandes, considerar throttling en actualizaciones del store
 - **Interpolación**: Para animaciones suaves, considerar interpolar entre timesteps adyacentes
 - **Memoria**: Resultados grandes (muchos timesteps × muchos elementos) pueden consumir memoria. Considerar streaming o compresión
+## Mapeo Visual de Resultados
+
+El módulo `src/modules/simulation/simulationVisualMapping.ts` traduce los valores hidráulicos de cada timestep en estilos visuales reutilizables tanto en 2D como en 3D.
+
+### Funciones principales
+
+```typescript
+computeLinkVisualStyle(link, ranges, options)
+computeNodeVisualStyle(node, ranges, options)
+computeLegendStops(ranges, metric, steps?)
+```
+
+- **Métricas soportadas**: `pressure`, `flow`, `velocity`, `tankLevel`.
+- **Estilo devuelto**: `color`, `width`, `opacity`, `intensity` (0-1) y `isCritical`.
+- **Detección de fallas**: si `highlightIssues` está activo, enlaces sin flujo o con velocidad muy baja y nodos con presión casi nula se marcan como críticos (`color` rojo y mayor opacidad).
+- **Leyenda**: `computeLegendStops` devuelve colores distribuidos uniformemente entre el valor mínimo y máximo de la métrica para construir leyendas consistentes.
+
+### Ejemplo de uso
+
+```typescript
+import {
+  computeLinkVisualStyle,
+  computeLegendStops,
+} from '@/modules/simulation/simulationVisualMapping';
+import { useCurrentTimestep, useSimulationRanges } from '@/shared/state/editorStore';
+
+const timestep = useCurrentTimestep();
+const ranges = useSimulationRanges();
+
+if (timestep && ranges) {
+  const style = computeLinkVisualStyle(timestep.links[0], ranges, {
+    metric: 'flow',
+    highlightIssues: true,
+  });
+
+  const legend = computeLegendStops(ranges, 'flow');
+}
+```
+
+Con el Punto 5 cubierto, la UI puede comenzar a visualizar el comportamiento hidráulico por timestep y resaltar zonas problemáticas, preparando el terreno para el reproductor del Punto 6.
+## Timeline de simulación
+
+El componente `SimulationTimeline` (`src/modules/simulation/SimulationTimeline.tsx`) ofrece controles de reproducción (play/pause, paso anterior/siguiente), selección de timestep vía slider y ajuste de velocidad (`0.25×` a `4×`). Se sincroniza con el store (`usePlaybackControls`) y actualiza automáticamente el timestep activo respetando el `reportStep` definido por EPANET.
+
+La reproducción se detiene al alcanzar el último timestep y puedes ajustar la velocidad sin perder la posición actual. El componente expone además información de tiempo transcurrido versus duración total, y utiliza los rangos globales para ofrecer contexto rápido antes de mapear valores en 2D/3D.

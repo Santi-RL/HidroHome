@@ -11,8 +11,9 @@ import {
 } from '@tabler/icons-react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { useNetwork } from '../../shared/state/editorStore';
+import { useCurrentTimestep, useNetwork, useSimulationState } from '../../shared/state/editorStore';
 import { getCatalogItem } from '../../shared/constants/catalog';
+import { formatSeconds } from '../../shared/utils/time';
 
 const scalePosition = (value: number) => value / 50;
 
@@ -41,6 +42,9 @@ export function Simple3DViewer() {
   const controlsRef = useRef<OrbitControls | null>(null);
   const animationRef = useRef<number | null>(null);
   const network = useNetwork();
+  const simulation = useSimulationState();
+  const currentTimestep = useCurrentTimestep();
+  const totalTimesteps = simulation.results?.timesteps.length ?? 0;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -291,6 +295,30 @@ export function Simple3DViewer() {
         <Text size="sm" c="dimmed" style={{ position: 'absolute', left: 16, top: 16, zIndex: 10 }}>
           Agrega elementos en 2D para verlos en 3D.
         </Text>
+      )}
+      {currentTimestep && totalTimesteps > 0 && (
+        <Box
+          style={{
+            position: 'absolute',
+            left: 16,
+            bottom: 16,
+            zIndex: 10,
+            backgroundColor: 'rgba(15, 23, 42, 0.8)',
+            color: '#f8fafc',
+            borderRadius: 8,
+            padding: '8px 12px',
+            minWidth: 180,
+          }}
+        >
+          <Stack gap={2}>
+            <Text size="xs" fw={600}>
+              Timestep {simulation.currentTimestepIndex + 1} de {totalTimesteps}
+            </Text>
+            <Text size="xs" c="gray.3">
+              Tiempo simulado: {formatSeconds(currentTimestep.time)}
+            </Text>
+          </Stack>
+        </Box>
       )}
       
       {/* Control buttons */}

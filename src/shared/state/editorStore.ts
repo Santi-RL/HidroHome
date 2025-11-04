@@ -467,17 +467,34 @@ export const useSimulationRanges = () =>
   useEditorStore((state) => state.simulation.results?.ranges);
 
 /**
- * Hook para el control de reproducción.
+ * Hook para obtener el estado de reproducción (sin acciones).
  */
-export const usePlaybackControls = () =>
-  useEditorStore((state) => ({
-    currentIndex: state.simulation.currentTimestepIndex,
-    isPlaying: state.simulation.isPlaying,
-    playbackSpeed: state.simulation.playbackSpeed,
-    totalTimesteps: state.simulation.results?.timesteps.length ?? 0,
-    setCurrentTimestep: state.setCurrentTimestep,
-    nextTimestep: state.nextTimestep,
-    previousTimestep: state.previousTimestep,
-    togglePlayback: state.togglePlayback,
-    setPlaybackSpeed: state.setPlaybackSpeed,
-  }));
+export const usePlaybackState = () => {
+  const currentIndex = useEditorStore((state) => state.simulation.currentTimestepIndex);
+  const isPlaying = useEditorStore((state) => state.simulation.isPlaying);
+  const playbackSpeed = useEditorStore((state) => state.simulation.playbackSpeed);
+  const totalTimesteps = useEditorStore(
+    (state) => state.simulation.results?.timesteps.length ?? 0,
+  );
+
+  return { currentIndex, isPlaying, playbackSpeed, totalTimesteps };
+};
+
+/**
+ * Hook para obtener las acciones de reproducción (estables).
+ */
+export const usePlaybackActions = () => {
+  const setCurrentTimestep = useEditorStore((state) => state.setCurrentTimestep);
+  const nextTimestep = useEditorStore((state) => state.nextTimestep);
+  const previousTimestep = useEditorStore((state) => state.previousTimestep);
+  const togglePlayback = useEditorStore((state) => state.togglePlayback);
+  const setPlaybackSpeed = useEditorStore((state) => state.setPlaybackSpeed);
+
+  return {
+    setCurrentTimestep,
+    nextTimestep,
+    previousTimestep,
+    togglePlayback,
+    setPlaybackSpeed,
+  };
+};

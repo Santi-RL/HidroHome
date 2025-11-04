@@ -158,10 +158,10 @@ export const CATALOG_ITEMS: CatalogItem[] = [
       baseDemand: 0,
       elevation: 5,
       tank: {
-        minLevel: 0,
-        maxLevel: 2,
-        diameter: 1.5,
-        initLevel: 1,
+        minLevel: 0.5,
+        maxLevel: 3.5,
+        diameter: 2,
+        initLevel: 2,
       },
       footprint: { width: 80, height: 80 },
     },
@@ -253,7 +253,7 @@ export const CATALOG_ITEMS: CatalogItem[] = [
       minorLoss: 0,
       status: 'OPEN',
       pump: {
-        power: 0.75,
+        power: 1.5,
       },
     },
   },

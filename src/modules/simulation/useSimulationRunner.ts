@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef } from 'react';
 import { notifications } from '@mantine/notifications';
 import { useEditorStore } from '../../shared/state/editorStore';
 import type { SimulationResults } from '../../shared/types/hydro';
+import type { SimulationErrorDetail } from '../../shared/types/simulation';
 import { mapWorkerErrorToDetails } from './simulationErrors';
 import { validateNetworkForSimulation } from './networkValidation';
+import { validateSimulationResults } from '../../shared/utils/simulationMigration';
 
 type WorkerMessage =
   | { type: 'success'; payload: SimulationResults }
@@ -26,6 +28,7 @@ export const useSimulationRunner = () => {
   const setStatus = useEditorStore((state) => state.setSimulationStatus);
   const setResults = useEditorStore((state) => state.setSimulationResults);
   const setError = useEditorStore((state) => state.setSimulationError);
+  const resetSimulation = useEditorStore((state) => state.resetSimulation);
 
   useEffect(() => {
     const worker = new Worker(new URL('./epanet.worker.ts', import.meta.url), {
@@ -36,6 +39,30 @@ export const useSimulationRunner = () => {
     const handleMessage = (event: MessageEvent<WorkerMessage>) => {
       const data = event.data;
       if (data.type === 'success') {
+        const validation = validateSimulationResults(data.payload);
+        if (!validation.valid) {
+          const details: SimulationErrorDetail[] = validation.errors.map((message, index) => ({
+            code: `simulation.results.invalid.${index}`,
+            title: 'Resultados de simulación incompletos',
+            description: message,
+            solution:
+              'Revisa la configuración temporal (duración e intervalos) y vuelve a ejecutar la simulación.',
+          }));
+          setError(details);
+          const summaryMessage =
+            validation.errors.length > 0
+              ? validation.errors.join(' | ')
+              : 'Resultados de simulación inválidos';
+          pendingPromise.current?.reject(new Error(summaryMessage));
+          pendingPromise.current = null;
+          notifications.show({
+            title: 'Resultados inválidos',
+            message: validation.errors[0] ?? 'Los datos devueltos no tienen la estructura esperada.',
+            color: 'red',
+          });
+          return;
+        }
+
         setResults(data.payload);
         setStatus('success');
         pendingPromise.current?.resolve(data.payload);
@@ -62,7 +89,7 @@ export const useSimulationRunner = () => {
           console.error('=== END ERROR DETAILS ===');
         }
         
-        const summary = details.map((detail) => detail.title).join(' · ');
+        const summary = details.map((detail) => detail.title).join(' | ');
         setError(details);
         pendingPromise.current?.reject(new Error(summary));
         pendingPromise.current = null;
@@ -77,7 +104,7 @@ export const useSimulationRunner = () => {
     const handleError = (errorEvent: ErrorEvent) => {
       const message = errorEvent.message || 'Fallo inesperado en el simulador.';
       const details = mapWorkerErrorToDetails(message);
-      const summary = details.map((detail) => detail.title).join(' · ');
+      const summary = details.map((detail) => detail.title).join(' | ');
       setError(details);
       pendingPromise.current?.reject(new Error(summary));
       pendingPromise.current = null;
@@ -110,7 +137,7 @@ export const useSimulationRunner = () => {
       const state = useEditorStore.getState();
       const validationIssues = validateNetworkForSimulation(state.network);
       if (validationIssues.length > 0) {
-        const summary = validationIssues.map((detail) => detail.title).join(' · ');
+        const summary = validationIssues.map((detail) => detail.title).join(' | ');
         setError(validationIssues);
         notifications.show({
           title: 'No se pudo simular',
@@ -121,6 +148,7 @@ export const useSimulationRunner = () => {
         return;
       }
 
+      resetSimulation();
       setStatus('running');
       pendingPromise.current = { resolve, reject };
 
@@ -129,7 +157,9 @@ export const useSimulationRunner = () => {
         payload: { network: state.network },
       });
     });
-  }, [setError, setStatus]);
+  }, [resetSimulation, setError, setStatus]);
 
   return { runSimulation };
 };
+
+

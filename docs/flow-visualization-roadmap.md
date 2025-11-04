@@ -1,6 +1,6 @@
 # Hoja de ruta animacion hidraulica
 
-Ultima actualizacion: 2025-10-30
+Ultima actualizacion: 2025-11-04
 
 1. [x] Definir nuevo modelo de resultados con series temporales
    - Extendido `SimulationResults` en `src/shared/types/hydro.ts` con timesteps, rangos, duration y reportStep
@@ -8,30 +8,30 @@ Ultima actualizacion: 2025-10-30
    - Creado sistema de migración automática en `src/shared/utils/simulationMigration.ts`
    - Estado de reproducción (play/pause, velocidad, timestep actual) integrado en el store
 
-2. [ ] Ajustar la configuracion de EPANET para simulaciones transitorias
+2. [x] Ajustar la configuracion de EPANET para simulaciones transitorias
    - Actualizar `src/modules/simulation/inpBuilder.ts` para exponer duracion, intervalo hidraulico y de reporte (por ahora constantes razonables, luego configurables).
    - Garantizar que tanques, bombas y patrones tengan parametros por defecto compatibles con simulaciones de varias horas.
    - Exponer utilidades para transformar unidades si se modifica la resolucion temporal.
 
-3. [ ] Capturar series temporales completas en `epanet.worker.ts`
-   - Reemplazar el flujo `solveH` por el bucle `project.runHydraulicAnalysis / nextHydraulicStep` de epanet-js y colectar resultados por timestep antes de cerrar el proyecto.
-   - Serializar por timestep: enlaces (flujo, velocidad, headloss, estado) y nodos (presion, demanda, head, nivel de tanque) junto a la marca de tiempo acumulada.
-   - Conservar un resumen agregado (max/min) para la UI actual y medir el peso del payload final.
+3. [x] Capturar series temporales completas en `epanet.worker.ts`
+   - Reemplazado `solveH` por el ciclo `openH / initH / runH / nextH` para obtener cada timestep antes de cerrar el proyecto.
+   - Serializados por timestep nodos (presion, demanda, head, nivel de tanque) y enlaces (flujo, velocidad, headloss, estado) con su marca temporal acumulada.
+   - Calculados resúmenes globales (rangos, max/min) y preservadas las vistas legacy (`nodes`, `links`) apuntando al último timestep.
 
-4. [ ] Actualizar `useSimulationRunner` y el store para manejar series
+4. [x] Actualizar `useSimulationRunner` y el store para manejar series
    - Validar la nueva estructura antes de persistir y limpiar el estado pendiente al iniciar una simulacion.
    - Propagar el timestep inicial (0) a la UI y al viewer 3D; agregar acciones en el store para seleccionar un timestep o reproducir animaciones.
    - Revisar `SimulationPanel.tsx` para mostrar mensajes utiles cuando la simulacion no devuelve data temporal.
 
-5. [ ] Crear servicios de mapeo de datos a propiedades visuales
-   - Implementar en `src/modules/simulation` un modulo (por ejemplo `simulationVisualMapping.ts`) que calcule colores, grosores y opacidades en funcion de presion o flujo.
-   - Definir escalas y umbrales compartidos (leyenda) y exponer helpers reutilizables por la UI 2D y 3D.
-   - Incluir deteccion de fallas (baja presion, ausencia de flujo, velocidades altas) para resaltar elementos criticos.
+5. [x] Crear servicios de mapeo de datos a propiedades visuales
+   - Implementado `simulationVisualMapping.ts` con helpers para colores, grosores, opacidades y deteccion de criticidad.
+   - Definidas escalas compartidas y generadores de leyenda en base a los rangos globales de la simulacion.
+   - Explicado el uso del modulo en la documentacion y preparado para reutilizacion en las vistas 2D/3D.
 
-6. [ ] Construir un reproductor de simulacion en la UI
-   - Disenar un componente `SimulationTimeline` con play/pause, slider y control de velocidad que consuma el store.
-   - Integrar el reproductor en `SimulationPanel.tsx` y sincronizarlo con el viewer 3D.
-   - Emitir eventos (por ejemplo `onFrameChange`) para que otras vistas reaccionen sin acoplamiento fuerte.
+6. [x] Construir un reproductor de simulacion en la UI
+   - Dise�ado `SimulationTimeline` con play/pause, slider y selector de velocidad apoyado en `usePlaybackControls`.
+   - Integrado en `SimulationPanel.tsx`, sincronizado con el store y con el overlay temporal del visor 3D.
+   - Reproducci�n automatica que se detiene al final y expone tiempos transcurridos/duracion para futuros overlays.
 
 7. [ ] Evolucionar el visor 3D hacia un motor reactivo
    - Evaluar migrar `Simple3DViewer.tsx` a `@react-three/fiber` + `@react-three/drei` para facilitar animaciones y controles, o encapsular un loop propio si se mantiene Three.js puro.
@@ -52,4 +52,3 @@ Ultima actualizacion: 2025-10-30
    - Probar con redes de distinto tamano para asegurar 60fps; aplicar instancing o LOD si es necesario.
    - Anadir herramientas de depuracion (por ejemplo visualizar timestep actual y stats) activables solo en desarrollo.
    - Documentar en `README.md` el flujo de simulacion animada y actualizar los ejemplos de proyecto para incluir series temporales.
-

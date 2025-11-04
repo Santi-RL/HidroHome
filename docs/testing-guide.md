@@ -101,5 +101,5 @@ testUsePlaybackControls()     // Hook de controles
 
 ## 🎉 Siguiente Paso
 
-Con el Punto 1 completado y verificado, estamos listos para:
-**Punto 2: Ajustar configuración de EPANET para simulaciones transitorias**
+Con el Punto 6 completado y verificado, estamos listos para:
+**Punto 7: Evolucionar el visor 3D hacia un motor reactivo**

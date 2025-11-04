@@ -2,6 +2,56 @@ import type { HydroLink, HydroNetwork, HydroNode } from '../../shared/types/hydr
 
 const formatNumber = (value: number, decimals = 3) => Number(value).toFixed(decimals);
 
+export type EpanetStatistic = 'NONE' | 'AVERAGED' | 'MINIMUM' | 'MAXIMUM';
+
+export interface InpTimeConfig {
+  durationSeconds: number;
+  hydraulicTimestepSeconds: number;
+  qualityTimestepSeconds: number;
+  patternTimestepSeconds: number;
+  patternStartSeconds: number;
+  reportTimestepSeconds: number;
+  reportStartSeconds: number;
+  startClockTime?: string;
+  statistic?: EpanetStatistic;
+}
+
+export interface BuildInpOptions {
+  timeConfig?: InpTimeConfig;
+}
+
+export const hoursToSeconds = (hours: number) => Math.max(0, Math.round(hours * 3600));
+export const minutesToSeconds = (minutes: number) => Math.max(0, Math.round(minutes * 60));
+
+export const formatSecondsToInpTime = (seconds: number): string => {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const remainingSeconds = safeSeconds % 60;
+
+  const hh = `${hours}`;
+  const mm = minutes.toString().padStart(2, '0');
+
+  if (remainingSeconds === 0) {
+    return `${hh}:${mm}`;
+  }
+
+  const ss = remainingSeconds.toString().padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+};
+
+export const DEFAULT_TRANSIENT_TIME_CONFIG: InpTimeConfig = {
+  durationSeconds: hoursToSeconds(6),
+  hydraulicTimestepSeconds: minutesToSeconds(15),
+  qualityTimestepSeconds: minutesToSeconds(5),
+  patternTimestepSeconds: minutesToSeconds(60),
+  patternStartSeconds: 0,
+  reportTimestepSeconds: minutesToSeconds(15),
+  reportStartSeconds: 0,
+  startClockTime: '12:00:00 AM',
+  statistic: 'NONE',
+};
+
 const buildOptionsSection = () => {
   const flowUnits = 'LPS';
   return [
@@ -24,21 +74,21 @@ const buildOptionsSection = () => {
   ].join('\n');
 };
 
-const buildTimesSection = () => {
-  return [
-    '[TIMES]',
-    'DURATION           0:00',
-    'HYDRAULIC TIMESTEP 1:00',
-    'QUALITY TIMESTEP   0:05',
-    'PATTERN TIMESTEP   1:00',
-    'PATTERN START      0:00',
-    'REPORT TIMESTEP    1:00',
-    'REPORT START       0:00',
-    'START CLOCKTIME    12:00:00 AM',
-    'STATISTIC          NONE',
-    '',
-  ].join('\n');
-};
+const buildTimesSection = (config: InpTimeConfig) => [
+  '[TIMES]',
+  `DURATION           ${formatSecondsToInpTime(config.durationSeconds)}`,
+  `HYDRAULIC TIMESTEP ${formatSecondsToInpTime(config.hydraulicTimestepSeconds)}`,
+  `QUALITY TIMESTEP   ${formatSecondsToInpTime(config.qualityTimestepSeconds)}`,
+  `PATTERN TIMESTEP   ${formatSecondsToInpTime(config.patternTimestepSeconds)}`,
+  `PATTERN START      ${formatSecondsToInpTime(config.patternStartSeconds)}`,
+  `REPORT TIMESTEP    ${formatSecondsToInpTime(config.reportTimestepSeconds)}`,
+  `REPORT START       ${formatSecondsToInpTime(config.reportStartSeconds)}`,
+  `START CLOCKTIME    ${config.startClockTime ?? '12:00:00 AM'}`,
+  `STATISTIC          ${(config.statistic ?? 'NONE').toUpperCase()}`,
+  '',
+].join('\n');
+
+const buildPatternsSection = () => ['[PATTERNS]', '1 1.0', ''].join('\n');
 
 const buildReportSection = () =>
   ['[REPORT]', 'STATUS             YES', 'SUMMARY            YES', 'NODES              ALL', 'LINKS              ALL', ''].join('\n');
@@ -51,7 +101,7 @@ const buildJunctions = (nodes: HydroNode[]) => {
     .filter(isJunction)
     .forEach((node) => {
       lines.push(
-        `${node.id} ${formatNumber(node.elevation, 3)} ${formatNumber(node.baseDemand, 4)}`,
+        `${node.id} ${formatNumber(node.elevation, 3)} ${formatNumber(node.baseDemand, 4)} 1`,
       );
     });
   lines.push('');
@@ -149,11 +199,16 @@ const buildCoordinates = (nodes: HydroNode[]) => {
   return lines.join('\n');
 };
 
-export const buildInpFromNetwork = (network: HydroNetwork): string => {
+export const buildInpFromNetwork = (
+  network: HydroNetwork,
+  options: BuildInpOptions = {},
+): string => {
   const sections: string[] = [];
+  const timeConfig = options.timeConfig ?? DEFAULT_TRANSIENT_TIME_CONFIG;
   sections.push(buildOptionsSection());
-  sections.push(buildTimesSection());
+  sections.push(buildTimesSection(timeConfig));
   sections.push(buildReportSection());
+  sections.push(buildPatternsSection());
   sections.push(buildJunctions(network.nodes));
   const reservoirs = buildReservoirs(network.nodes);
   if (reservoirs) sections.push(reservoirs);
