@@ -145,3 +145,30 @@ Import `examples/minimal-network.json` to test with a valid network (reservoir â
 - Don't add nodes/links without using catalog items (breaks INP export)
 - Don't mix measurement units in calculations (always convert at boundaries)
 - Don't skip network validation before simulation (EPANET crashes on invalid input)
+
+## Documentation Standards
+
+### UI/Layout Documentation
+**Critical**: When making changes to the user interface or layout, you MUST update `docs/ui-architecture.md`. This file serves as the single source of truth for the application's visual structure and component organization.
+
+**Update `docs/ui-architecture.md` when**:
+- Adding, removing, or moving UI components
+- Changing the AppShell structure (Header, Navbar, Aside, Main)
+- Modifying component hierarchy or nesting
+- Implementing features from the roadmap
+- Discovering new UI/UX improvement opportunities
+- Changing component props, positioning, or styling patterns
+
+**Update process**:
+1. Edit the "Estructura de Componentes Actual" section with the current state
+2. Update ASCII diagrams if layout changes
+3. Mark roadmap items as completed [x] when implemented
+4. Add new roadmap items if identified during development
+5. Update "Estado de Desarrollo" section
+6. Commit with descriptive message: `docs: update ui-architecture with [specific change]`
+
+**This ensures**:
+- Future chat sessions have accurate context
+- Team members understand the UI structure
+- Design decisions are documented
+- Roadmap progress is tracked systematically

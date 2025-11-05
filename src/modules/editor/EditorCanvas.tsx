@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, type DragEvent as ReactDragEvent } from 'react';
 import { Box } from '@mantine/core';
 import { Layer, Line, Rect, Stage, Text as KonvaText, Group as KonvaGroup, Circle } from 'react-konva';
 import { CATALOG_DRAG_DATA_KEY } from '../catalog/CatalogPanel';
@@ -12,6 +12,7 @@ import {
   useNetwork,
   useSelection,
   useSimulationRanges,
+  useFloatingPanels,
 } from '../../shared/state/editorStore';
 import type { Vec2 } from '../../shared/types/math';
 import type { SimulationNodeResult } from '../../shared/types/hydro';
@@ -33,6 +34,7 @@ import {
 import { SimulationLegend } from './SimulationLegend';
 import { ElementTooltip } from './ElementTooltip';
 import { CriticalAlertsPanel } from './CriticalAlertsPanel';
+import { CanvasToolbar } from './CanvasToolbar';
 
 const DEFAULT_CANVAS_SIZE = { width: 1200, height: 720 };
 
@@ -74,6 +76,7 @@ export function EditorCanvas() {
     startTime: Date.now(),
   });
   const animationFrameRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number>(Date.now());
   const prevTimestepIndexRef = useRef<number | null>(null);
   const prevStylesRef = useRef<{
     links: Record<string, ReturnType<typeof computeLinkVisualStyle>>;
@@ -88,6 +91,22 @@ export function EditorCanvas() {
   const completeLinkTo = useEditorStore((state) => state.completeLinkTo);
   const currentTimestep = useCurrentTimestep();
   const simulationRanges = useSimulationRanges();
+  const floatingPanels = useFloatingPanels();
+  const toggleLegendPanel = useEditorStore((state) => state.toggleLegendPanel);
+  const toggleAlertsPanel = useEditorStore((state) => state.toggleAlertsPanel);
+
+  // Mostrar automáticamente los paneles cuando hay resultados de simulación
+  useEffect(() => {
+    if (simulationRanges && !floatingPanels.isLegendVisible) {
+      toggleLegendPanel();
+    }
+  }, [simulationRanges, floatingPanels.isLegendVisible, toggleLegendPanel]);
+
+  useEffect(() => {
+    if (currentTimestep && !floatingPanels.isAlertsVisible) {
+      toggleAlertsPanel();
+    }
+  }, [currentTimestep, floatingPanels.isAlertsVisible, toggleAlertsPanel]);
 
   // Detectar cambio de timestep e iniciar transición
   useEffect(() => {
@@ -198,6 +217,53 @@ export function EditorCanvas() {
     return map;
   }, [currentTimestep]);
 
+  // Memoizar datos de flechas direccionales para evitar recalcular en cada render
+  const arrowData = useMemo(() => {
+    if (!currentTimestep) return {};
+    
+    const arrows: Record<string, {
+      hasFlow: boolean;
+      arrowPoints: number[];
+      length: number;
+    }> = {};
+
+    network.links.forEach((link) => {
+      const fromNode = network.nodes.find((n) => n.id === link.from);
+      const toNode = network.nodes.find((n) => n.id === link.to);
+      if (!fromNode || !toNode) return;
+
+      const linkResult = currentTimestep.links.find((lr) => lr.id === link.id);
+      const hasFlow = linkResult && Math.abs(linkResult.flow) > 0.001;
+      const flowReversed = linkResult && linkResult.flow < 0;
+
+      const dx = toNode.position.x - fromNode.position.x;
+      const dy = toNode.position.y - fromNode.position.y;
+      const length = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx);
+      
+      const arrowX = fromNode.position.x + dx * 0.5;
+      const arrowY = fromNode.position.y + dy * 0.5;
+      
+      const style = linkStyles[link.id];
+      const strokeWidth = (style?.width ?? 4);
+      const arrowSize = Math.max(8, strokeWidth * 1.5);
+      
+      const arrowAngle = flowReversed ? angle + Math.PI : angle;
+      const arrowPoints = [
+        arrowX + Math.cos(arrowAngle) * arrowSize,
+        arrowY + Math.sin(arrowAngle) * arrowSize,
+        arrowX + Math.cos(arrowAngle + Math.PI * 2.5 / 3) * arrowSize * 0.7,
+        arrowY + Math.sin(arrowAngle + Math.PI * 2.5 / 3) * arrowSize * 0.7,
+        arrowX + Math.cos(arrowAngle - Math.PI * 2.5 / 3) * arrowSize * 0.7,
+        arrowY + Math.sin(arrowAngle - Math.PI * 2.5 / 3) * arrowSize * 0.7,
+      ];
+
+      arrows[link.id] = { hasFlow: hasFlow || false, arrowPoints, length };
+    });
+
+    return arrows;
+  }, [currentTimestep, network.nodes, network.links, linkStyles]);
+
   // Datos del elemento seleccionado para el tooltip
   const selectedElementData = useMemo(() => {
     if (!selection || !currentTimestep) return null;
@@ -250,25 +316,40 @@ export function EditorCanvas() {
     });
   }, [currentTimestep, simulationRanges, network.links, network.nodes, linkStyles]);
 
-  // Loop de animación para actualizar partículas
+  // Loop de animación optimizado para actualizar partículas
+  const animateParticles = useCallback(() => {
+    const now = Date.now();
+    const deltaTime = (now - lastFrameTimeRef.current) / 1000; // Convertir a segundos
+    lastFrameTimeRef.current = now;
+
+    // Limitar deltaTime para evitar saltos grandes si el tab estaba inactivo
+    const clampedDelta = Math.min(deltaTime, 0.1);
+
+    setParticleSystem((prev) => updateParticleSystem(prev, clampedDelta));
+    animationFrameRef.current = requestAnimationFrame(animateParticles);
+  }, []);
+
+  // Iniciar/detener loop de animación
   useEffect(() => {
     if (!currentTimestep || particleSystem.particles.length === 0) {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
       return;
     }
 
-    const animate = () => {
-      setParticleSystem((prev) => updateParticleSystem(prev, 1 / 60)); // 60 FPS
-      animationFrameRef.current = requestAnimationFrame(animate);
-    };
-
-    animationFrameRef.current = requestAnimationFrame(animate);
+    // Inicializar timestamp
+    lastFrameTimeRef.current = Date.now();
+    animationFrameRef.current = requestAnimationFrame(animateParticles);
 
     return () => {
       if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
       }
     };
-  }, [currentTimestep, particleSystem.particles.length]);
+  }, [currentTimestep, particleSystem.particles.length, animateParticles]);
 
   // Medir el contenedor solo una vez cuando cambia su tamaño real (resize del viewport)
   useEffect(() => {
@@ -484,37 +565,8 @@ export function EditorCanvas() {
             const isSelected = selection?.type === 'link' && selection.id === link.id;
             const strokeWidth = (style?.width ?? 4) + (isSelected ? 1.5 : 0);
 
-            // Calcular dirección del flujo para las flechas
-            const linkResult = currentTimestep?.links.find((lr) => lr.id === link.id);
-            const hasFlow = linkResult && Math.abs(linkResult.flow) > 0.001;
-            const flowReversed = linkResult && linkResult.flow < 0;
-
-            // Calcular puntos para las flechas (en el punto medio del enlace)
-            const dx = toNode.position.x - fromNode.position.x;
-            const dy = toNode.position.y - fromNode.position.y;
-            const length = Math.sqrt(dx * dx + dy * dy);
-            const angle = Math.atan2(dy, dx);
-            
-            // Posición de la flecha (en el centro de la tubería)
-            const arrowX = fromNode.position.x + dx * 0.5;
-            const arrowY = fromNode.position.y + dy * 0.5;
-            
-            // Tamaño de la flecha basado en el grosor de la tubería
-            const arrowSize = Math.max(8, strokeWidth * 1.5);
-            
-            // Calcular puntos de la flecha (triángulo)
-            const arrowAngle = flowReversed ? angle + Math.PI : angle;
-            const arrowPoints = [
-              // Punta de la flecha
-              arrowX + Math.cos(arrowAngle) * arrowSize,
-              arrowY + Math.sin(arrowAngle) * arrowSize,
-              // Base izquierda
-              arrowX + Math.cos(arrowAngle + Math.PI * 2.5 / 3) * arrowSize * 0.7,
-              arrowY + Math.sin(arrowAngle + Math.PI * 2.5 / 3) * arrowSize * 0.7,
-              // Base derecha
-              arrowX + Math.cos(arrowAngle - Math.PI * 2.5 / 3) * arrowSize * 0.7,
-              arrowY + Math.sin(arrowAngle - Math.PI * 2.5 / 3) * arrowSize * 0.7,
-            ];
+            // Usar datos de flecha pre-calculados
+            const arrow = arrowData[link.id];
 
             return (
               <KonvaGroup key={link.id}>
@@ -532,9 +584,9 @@ export function EditorCanvas() {
                   onClick={() => handleLinkClick(link.id)}
                 />
                 {/* Flecha direccional del flujo */}
-                {hasFlow && length > 40 && (
+                {arrow && arrow.hasFlow && arrow.length > 40 && (
                   <Line
-                    points={arrowPoints}
+                    points={arrow.arrowPoints}
                     closed
                     fill={stroke}
                     opacity={(style?.opacity ?? 0.85) * 0.9}
@@ -728,7 +780,22 @@ export function EditorCanvas() {
               </KonvaGroup>
             );
           })}
-          {/* Partículas de flujo animadas */}
+          {activeTool === 'connect' && linkStartNodeId && cursorPosition && (
+            <Line
+              points={[
+                network.nodes.find((node) => node.id === linkStartNodeId)?.position.x ?? 0,
+                network.nodes.find((node) => node.id === linkStartNodeId)?.position.y ?? 0,
+                cursorPosition.x,
+                cursorPosition.y,
+              ]}
+              stroke={activeTemplateColor}
+              strokeWidth={3}
+              dash={[8, 4]}
+            />
+          )}
+        </Layer>
+        {/* Layer separado para partículas - mejor performance en hitTest */}
+        <Layer listening={false}>
           {particleSystem.particles.map((particle) => {
             const link = network.links.find((l) => l.id === particle.linkId);
             if (!link) return null;
@@ -750,24 +817,14 @@ export function EditorCanvas() {
                 shadowBlur={12}
                 shadowOpacity={0.8}
                 listening={false}
+                perfectDrawEnabled={false}
               />
             );
           })}
-          {activeTool === 'connect' && linkStartNodeId && cursorPosition && (
-            <Line
-              points={[
-                network.nodes.find((node) => node.id === linkStartNodeId)?.position.x ?? 0,
-                network.nodes.find((node) => node.id === linkStartNodeId)?.position.y ?? 0,
-                cursorPosition.x,
-                cursorPosition.y,
-              ]}
-              stroke={activeTemplateColor}
-              strokeWidth={3}
-              dash={[8, 4]}
-            />
-          )}
         </Layer>
       </Stage>
+      {/* Barra de herramientas superior */}
+      <CanvasToolbar />
       <Box
         style={{
           position: 'absolute',

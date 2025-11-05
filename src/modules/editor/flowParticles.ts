@@ -81,6 +81,7 @@ const getParticleColor = (intensity: number, isCritical: boolean): string => {
 
 /**
  * Calcula el número de partículas a generar por enlace
+ * Limitado para mantener buena performance en redes grandes
  */
 const calculateParticleCount = (flow: number, linkLength: number): number => {
   const absFlow = Math.abs(flow);
@@ -90,12 +91,13 @@ const calculateParticleCount = (flow: number, linkLength: number): number => {
     return 0;
   }
   
-  // Más flujo = más partículas (1-6 partículas por enlace)
-  // También considerar longitud: enlaces más largos tienen más partículas
-  const baseCount = Math.ceil(absFlow / 10); // 1 partícula cada 10 L/s
-  const lengthFactor = Math.max(1, Math.floor(linkLength / 100)); // 1 extra cada 100px
+  // Más flujo = más partículas (1-4 partículas por enlace)
+  // Reducido de 8 máximo a 4 para mejor performance
+  const baseCount = Math.ceil(absFlow / 15); // 1 partícula cada 15 L/s (ajustado)
+  const lengthFactor = Math.max(1, Math.floor(linkLength / 150)); // 1 extra cada 150px
   
-  return Math.min(baseCount + lengthFactor, 8);
+  // Límite máximo de 4 partículas por enlace
+  return Math.min(baseCount + lengthFactor, 4);
 };
 
 /**

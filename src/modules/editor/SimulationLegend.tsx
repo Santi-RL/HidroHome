@@ -1,8 +1,9 @@
-import { Box, Text, Stack, Group, Paper, ActionIcon, Collapse } from '@mantine/core';
+import { Box, Text, Stack, Group, Collapse, ActionIcon } from '@mantine/core';
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { useState } from 'react';
-import { useSimulationRanges } from '../../shared/state/editorStore';
+import { useSimulationRanges, useFloatingPanels, useFloatingPanelsActions } from '../../shared/state/editorStore';
 import { computeLegendStops } from '../simulation/simulationVisualMapping';
+import { DraggableFloatingPanel } from './DraggableFloatingPanel';
 
 // Formato de número argentino: punto para miles, coma para decimales
 const formatNumberAR = (value: number, decimals: number = 2): string => {
@@ -14,8 +15,11 @@ const formatNumberAR = (value: number, decimals: number = 2): string => {
 
 export function SimulationLegend() {
   const simulationRanges = useSimulationRanges();
+  const { isLegendVisible, legendPosition } = useFloatingPanels();
+  const { toggleLegendPanel, setLegendPosition } = useFloatingPanelsActions();
   const [isExpanded, setIsExpanded] = useState(true);
 
+  // No renderizar si no hay datos de simulación
   if (!simulationRanges) {
     return null;
   }
@@ -25,25 +29,18 @@ export function SimulationLegend() {
   const pressureStops = computeLegendStops(simulationRanges, 'pressure', 5);
 
   return (
-    <Paper
-      shadow="md"
-      radius="md"
-      style={{
-        position: 'absolute',
-        top: 16,
-        right: 16,
-        width: 260,
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(8px)',
-        border: '1px solid rgba(0, 0, 0, 0.1)',
-        zIndex: 100,
-      }}
+    <DraggableFloatingPanel
+      title="Leyenda de Simulación"
+      position={legendPosition}
+      isVisible={isLegendVisible}
+      onClose={toggleLegendPanel}
+      onPositionChange={setLegendPosition}
+      defaultPosition={{ x: window.innerWidth - 276, y: 16 }}
+      width={260}
+      zIndex={100}
     >
-      <Box p="sm">
-        <Group justify="space-between" mb={isExpanded ? 'sm' : 0}>
-          <Text size="sm" fw={600} c="dark.8">
-            Leyenda de Simulación
-          </Text>
+      <Box>
+        <Group justify="flex-end" mb={isExpanded ? 'sm' : 0}>
           <ActionIcon
             variant="subtle"
             size="sm"
@@ -169,6 +166,6 @@ export function SimulationLegend() {
           </Stack>
         </Collapse>
       </Box>
-    </Paper>
+    </DraggableFloatingPanel>
   );
 }

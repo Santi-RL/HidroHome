@@ -3,6 +3,8 @@ import { IconAlertTriangle, IconChevronDown, IconChevronUp, IconDroplet, IconGau
 import { useState, useMemo } from 'react';
 import type { HydroNode, HydroLink, SimulationTimestep, SimulationRanges } from '../../shared/types/hydro';
 import { computeLinkVisualStyle, computeNodeVisualStyle } from '../simulation/simulationVisualMapping';
+import { useFloatingPanels, useFloatingPanelsActions } from '../../shared/state/editorStore';
+import { DraggableFloatingPanel } from './DraggableFloatingPanel';
 
 // Formato de número argentino: punto para miles, coma para decimales
 const formatNumberAR = (value: number, decimals: number = 2): string => {
@@ -38,6 +40,8 @@ export function CriticalAlertsPanel({
   onSelectElement,
 }: CriticalAlertsPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const { isAlertsVisible, alertsPosition } = useFloatingPanels();
+  const { toggleAlertsPanel, setAlertsPosition } = useFloatingPanelsActions();
 
   // Detectar elementos críticos
   const criticalAlerts = useMemo(() => {
@@ -129,27 +133,28 @@ export function CriticalAlertsPanel({
   }
 
   return (
-    <Paper
-      shadow="lg"
-      radius="md"
-      style={{
-        position: 'absolute',
-        top: 16,
-        left: 16,
-        width: 340,
-        maxHeight: '60vh',
-        backgroundColor: 'rgba(254, 242, 242, 0.98)',
-        backdropFilter: 'blur(10px)',
-        border: '2px solid #dc2626',
-        zIndex: 100,
-      }}
+    <DraggableFloatingPanel
+      title="Alertas Críticas"
+      position={alertsPosition}
+      isVisible={isAlertsVisible}
+      onClose={toggleAlertsPanel}
+      onPositionChange={setAlertsPosition}
+      defaultPosition={{ x: 16, y: 80 }}
+      width={340}
+      zIndex={101}
     >
-      <Box p="sm">
+      <Box
+        style={{
+          backgroundColor: 'rgba(254, 242, 242, 0.6)',
+          borderRadius: 8,
+          padding: 8,
+        }}
+      >
         <Group justify="space-between" mb={isExpanded ? 'sm' : 0}>
           <Group gap="xs">
             <IconAlertTriangle size={18} color="#dc2626" />
             <Text size="sm" fw={700} c="red.8">
-              Alertas Críticas
+              Alertas
             </Text>
             <Badge color="red" size="sm" circle>
               {criticalAlerts.length}
@@ -239,6 +244,6 @@ export function CriticalAlertsPanel({
           </Box>
         </Collapse>
       </Box>
-    </Paper>
+    </DraggableFloatingPanel>
   );
 }

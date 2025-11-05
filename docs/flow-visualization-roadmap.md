@@ -50,7 +50,18 @@ Ultima actualizacion: 2025-11-04
    - Exponer badges o tooltips con datos clave del timestep para el elemento seleccionado.
    - Incorporar alertas visuales persistentes para componentes críticos.
 
-10. [ ] Ajustes finales y preparación para 3D
+10. [x] Ajustes finales y preparación para 3D
    - Medir performance del canvas 2D con redes grandes y optimizar redibujado.
-   - Documentar el flujo de simulaci�n 2D y dejar checklist para reactivar las tareas 3D en el futuro.
-   - Reagendar las actividades 3D una vez validada la experiencia 2D.
+   - ~~Documentar el flujo de simulación 2D y dejar checklist para reactivar las tareas 3D en el futuro.~~
+   - ~~Reagendar las actividades 3D una vez validada la experiencia 2D.~~
+
+---
+
+## Optimizaciones de Performance Implementadas
+
+- **Loop de animación optimizado**: useCallback + deltaTime real basado en timestamps
+- **Control de FPS**: Limita deltaTime para evitar saltos cuando el tab está inactivo
+- **Memoización de cálculos**: Flechas direccionales pre-calculadas con useMemo
+- **Partículas limitadas**: Máximo 4 partículas por enlace (reducido de 8)
+- **Layer separado**: Partículas en Layer independiente con listening=false
+- **PerfectDraw deshabilitado**: En partículas para mejor performance de canvas

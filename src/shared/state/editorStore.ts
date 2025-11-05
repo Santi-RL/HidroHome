@@ -34,6 +34,17 @@ interface SimulationState {
   playbackSpeed: number;
 }
 
+interface FloatingPanelState {
+  /** Visibilidad del panel de leyenda de simulación */
+  isLegendVisible: boolean;
+  /** Visibilidad del panel de alertas críticas */
+  isAlertsVisible: boolean;
+  /** Posición del panel de leyenda (null = posición por defecto) */
+  legendPosition: Vec2 | null;
+  /** Posición del panel de alertas (null = posición por defecto) */
+  alertsPosition: Vec2 | null;
+}
+
 interface EditorState {
   network: HydroNetwork;
   selection: Selection;
@@ -44,6 +55,7 @@ interface EditorState {
   isDirty: boolean;
   simulation: SimulationState;
   viewMode: ViewMode;
+  floatingPanels: FloatingPanelState;
   addNode: (itemId: string, position: Vec2) => void;
   updateNodePosition: (nodeId: string, position: Vec2) => void;
   updateNode: (nodeId: string, changes: Partial<HydroNode>) => void;
@@ -76,6 +88,14 @@ interface EditorState {
   togglePlayback: () => void;
   /** Establecer la velocidad de reproducción */
   setPlaybackSpeed: (speed: number) => void;
+  /** Mostrar/ocultar panel de leyenda */
+  toggleLegendPanel: () => void;
+  /** Mostrar/ocultar panel de alertas */
+  toggleAlertsPanel: () => void;
+  /** Actualizar posición del panel de leyenda */
+  setLegendPosition: (position: Vec2 | null) => void;
+  /** Actualizar posición del panel de alertas */
+  setAlertsPosition: (position: Vec2 | null) => void;
 }
 
 const nowIso = () => new Date().toISOString();
@@ -96,6 +116,13 @@ const createDefaultSimulationState = (): SimulationState => ({
   currentTimestepIndex: 0,
   isPlaying: false,
   playbackSpeed: 1.0,
+});
+
+const createDefaultFloatingPanelsState = (): FloatingPanelState => ({
+  isLegendVisible: true,
+  isAlertsVisible: true,
+  legendPosition: null,
+  alertsPosition: null,
 });
 
 const updateTimestamp = (network: HydroNetwork): HydroNetwork => ({
@@ -129,6 +156,7 @@ export const useEditorStore = create<EditorState>()(
       isDirty: false,
       simulation: createDefaultSimulationState(),
       viewMode: '2d',
+      floatingPanels: createDefaultFloatingPanelsState(),
 
       addNode: (itemId, position) => {
         const item = getCatalogItem(itemId);
@@ -425,6 +453,38 @@ export const useEditorStore = create<EditorState>()(
             playbackSpeed: Math.max(0.1, Math.min(speed, 10.0)),
           },
         })),
+
+      toggleLegendPanel: () =>
+        set((state) => ({
+          floatingPanels: {
+            ...state.floatingPanels,
+            isLegendVisible: !state.floatingPanels.isLegendVisible,
+          },
+        })),
+
+      toggleAlertsPanel: () =>
+        set((state) => ({
+          floatingPanels: {
+            ...state.floatingPanels,
+            isAlertsVisible: !state.floatingPanels.isAlertsVisible,
+          },
+        })),
+
+      setLegendPosition: (position) =>
+        set((state) => ({
+          floatingPanels: {
+            ...state.floatingPanels,
+            legendPosition: position,
+          },
+        })),
+
+      setAlertsPosition: (position) =>
+        set((state) => ({
+          floatingPanels: {
+            ...state.floatingPanels,
+            alertsPosition: position,
+          },
+        })),
     }),
     {
       name: 'hidrohome-editor-store',
@@ -496,5 +556,27 @@ export const usePlaybackActions = () => {
     previousTimestep,
     togglePlayback,
     setPlaybackSpeed,
+  };
+};
+
+/**
+ * Hook para obtener el estado de los paneles flotantes.
+ */
+export const useFloatingPanels = () => useEditorStore((state) => state.floatingPanels);
+
+/**
+ * Hook para obtener las acciones de los paneles flotantes.
+ */
+export const useFloatingPanelsActions = () => {
+  const toggleLegendPanel = useEditorStore((state) => state.toggleLegendPanel);
+  const toggleAlertsPanel = useEditorStore((state) => state.toggleAlertsPanel);
+  const setLegendPosition = useEditorStore((state) => state.setLegendPosition);
+  const setAlertsPosition = useEditorStore((state) => state.setAlertsPosition);
+
+  return {
+    toggleLegendPanel,
+    toggleAlertsPanel,
+    setLegendPosition,
+    setAlertsPosition,
   };
 };
