@@ -1,4 +1,11 @@
-import { type ReactNode, useCallback, useRef, useState, type MouseEvent } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import { ActionIcon, Box, Group, Paper, Text } from '@mantine/core';
 import { IconGripVertical, IconX } from '@tabler/icons-react';
 import type { Vec2 } from '../../shared/types/math';
@@ -32,9 +39,13 @@ export function DraggableFloatingPanel({
 
   const actualPosition = position ?? defaultPosition;
 
-  const handleMouseDown = useCallback((event: MouseEvent<HTMLDivElement>) => {
+  const handleMouseDown = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+
     if (!panelRef.current) return;
-    
+
     const rect = panelRef.current.getBoundingClientRect();
     setDragOffset({
       x: event.clientX - rect.left,
@@ -44,35 +55,57 @@ export function DraggableFloatingPanel({
     event.preventDefault();
   }, []);
 
-  const handleMouseMove = useCallback(
-    (event: globalThis.MouseEvent) => {
-      if (!isDragging) return;
+  useEffect(() => {
+    if (!isDragging) {
+      return undefined;
+    }
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const panelElement = panelRef.current;
+      if (!panelElement) {
+        return;
+      }
+
+      const offsetParent = panelElement.offsetParent as HTMLElement | null;
+      let containerLeft = 0;
+      let containerTop = 0;
+
+      if (offsetParent) {
+        const rect = offsetParent.getBoundingClientRect();
+        containerLeft = rect.left + offsetParent.clientLeft;
+        containerTop = rect.top + offsetParent.clientTop;
+      } else if (panelElement.parentElement instanceof HTMLElement) {
+        const rect = panelElement.parentElement.getBoundingClientRect();
+        containerLeft = rect.left + panelElement.parentElement.clientLeft;
+        containerTop = rect.top + panelElement.parentElement.clientTop;
+      }
 
       const newPosition = {
-        x: event.clientX - dragOffset.x,
-        y: event.clientY - dragOffset.y,
+        x: event.clientX - dragOffset.x - containerLeft,
+        y: event.clientY - dragOffset.y - containerTop,
       };
 
       onPositionChange(newPosition);
-    },
-    [isDragging, dragOffset, onPositionChange],
-  );
+    };
 
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
 
-  // Event listeners para drag
-  if (isDragging) {
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-  }
 
-  // Cleanup
-  if (!isDragging) {
-    window.removeEventListener('mousemove', handleMouseMove);
-    window.removeEventListener('mouseup', handleMouseUp);
-  }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragOffset, onPositionChange]);
+
+  useEffect(() => {
+    if (!isVisible && isDragging) {
+      setIsDragging(false);
+    }
+  }, [isVisible, isDragging]);
 
   if (!isVisible) {
     return null;
@@ -115,6 +148,7 @@ export function DraggableFloatingPanel({
             variant="subtle"
             size="sm"
             onClick={onClose}
+            onMouseDown={(event) => event.stopPropagation()}
             aria-label={`Cerrar ${title}`}
           >
             <IconX size={16} />

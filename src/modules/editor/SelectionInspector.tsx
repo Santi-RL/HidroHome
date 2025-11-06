@@ -70,6 +70,28 @@ export function SelectionInspector() {
             updateNode(node.id, { elevation: Number(value) });
           }}
         />
+        {node.reservoir && (
+          <>
+            <Divider label="Reservorio" />
+            <NumberInput
+              label="Carga hidráulica (m)"
+              description={`Presión constante: ≈${(node.reservoir.head * 0.0981).toFixed(2)} bar / ${(node.reservoir.head * 0.0981 * 1.02).toFixed(2)} kg/cm²`}
+              value={node.reservoir.head}
+              step={0.5}
+              min={0}
+              onChange={(value) => {
+                if (value === '' || value === null) return;
+                updateNode(node.id, {
+                  reservoir: {
+                    ...node.reservoir!,
+                    head: Number(value),
+                  },
+                });
+              }}
+            />
+          </>
+        )}
+
         {node.tank && (
           <>
             <Divider label="Tanque" />

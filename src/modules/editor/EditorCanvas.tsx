@@ -82,6 +82,8 @@ export function EditorCanvas() {
     links: Record<string, ReturnType<typeof computeLinkVisualStyle>>;
     nodes: Record<string, ReturnType<typeof computeNodeVisualStyle>>;
   }>({ links: {}, nodes: {} });
+  const hasAutoOpenedLegendRef = useRef(false);
+  const hasAutoOpenedAlertsRef = useRef(false);
   const addNode = useEditorStore((state) => state.addNode);
   const updateNodePosition = useEditorStore((state) => state.updateNodePosition);
   const selectNode = useEditorStore((state) => state.selectNode);
@@ -95,18 +97,33 @@ export function EditorCanvas() {
   const toggleLegendPanel = useEditorStore((state) => state.toggleLegendPanel);
   const toggleAlertsPanel = useEditorStore((state) => state.toggleAlertsPanel);
 
-  // Mostrar automáticamente los paneles cuando hay resultados de simulación
+  // Mostrar automaticamente los paneles cuando hay resultados de simulacion
   useEffect(() => {
-    if (simulationRanges && !floatingPanels.isLegendVisible) {
-      toggleLegendPanel();
+    if (simulationRanges) {
+      if (!hasAutoOpenedLegendRef.current) {
+        hasAutoOpenedLegendRef.current = true;
+        if (!floatingPanels.isLegendVisible) {
+          toggleLegendPanel();
+        }
+      }
+    } else {
+      hasAutoOpenedLegendRef.current = false;
     }
   }, [simulationRanges, floatingPanels.isLegendVisible, toggleLegendPanel]);
 
   useEffect(() => {
-    if (currentTimestep && !floatingPanels.isAlertsVisible) {
-      toggleAlertsPanel();
+    if (currentTimestep) {
+      if (!hasAutoOpenedAlertsRef.current) {
+        hasAutoOpenedAlertsRef.current = true;
+        if (!floatingPanels.isAlertsVisible) {
+          toggleAlertsPanel();
+        }
+      }
+    } else {
+      hasAutoOpenedAlertsRef.current = false;
     }
   }, [currentTimestep, floatingPanels.isAlertsVisible, toggleAlertsPanel]);
+
 
   // Detectar cambio de timestep e iniciar transición
   useEffect(() => {
@@ -613,6 +630,10 @@ export function EditorCanvas() {
               nodeResult && Number.isFinite(nodeResult.pressure)
                 ? `Presión: ${formatNumberAR(nodeResult.pressure, 2)} kPa`
                 : 'Presión: --';
+            const pressureBarText = 
+              node.type === 'reservoir' && nodeResult && Number.isFinite(nodeResult.pressure)
+                ? `(${formatNumberAR(nodeResult.pressure / 98.1, 2)} bar)`
+                : '';
             const demandLps =
               nodeResult && Number.isFinite(nodeResult.demand)
                 ? nodeResult.demand
@@ -743,7 +764,13 @@ export function EditorCanvas() {
                       x={-65}
                       y={footprint.height / 2 + 36}
                       width={130}
-                      height={node.type === 'fixture' || node.baseDemand > 0 ? 44 : 22}
+                      height={
+                        node.type === 'reservoir' && pressureBarText
+                          ? 44 // Reservorio: 2 líneas para presión
+                          : node.type === 'fixture' || node.baseDemand > 0
+                          ? 44 // Fixture: presión + demanda
+                          : 22 // Otros: solo presión
+                      }
                       fill="white"
                       opacity={0.9}
                       cornerRadius={4}
@@ -762,6 +789,21 @@ export function EditorCanvas() {
                       x={-65}
                       y={footprint.height / 2 + 36}
                     />
+                    {/* Segunda línea: bar para reservorios */}
+                    {node.type === 'reservoir' && pressureBarText && (
+                      <KonvaText
+                        text={pressureBarText}
+                        fontSize={10}
+                        fill="#64748b"
+                        align="center"
+                        verticalAlign="middle"
+                        width={130}
+                        height={22}
+                        x={-65}
+                        y={footprint.height / 2 + 58}
+                      />
+                    )}
+                    {/* Demanda para fixtures */}
                     {(node.type === 'fixture' || node.baseDemand > 0) && (
                       <KonvaText
                         text={demandText}
@@ -854,7 +896,7 @@ export function EditorCanvas() {
         onSelectElement={handleAlertClick}
       />
       {/* Leyenda de simulación */}
-      {currentTimestep && <SimulationLegend />}
+      {currentTimestep && <SimulationLegend containerWidth={stageWidth} />}
       {/* Tooltip de elemento seleccionado */}
       {selectedElementData && (
         <ElementTooltip

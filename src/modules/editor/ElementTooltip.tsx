@@ -79,12 +79,17 @@ export function ElementTooltip({
               <Group gap="xs">
                 <IconGauge size={16} style={{ color: '#3b82f6' }} />
                 <Text size="xs" fw={600} c="dark.7">
-                  Presión:
+                  {selectedNode.type === 'reservoir' ? 'Presión de suministro:' : 'Presión:'}
                 </Text>
                 <Text size="xs" c="dark.8" fw={500} style={{ fontFamily: 'monospace' }}>
                   {Number.isFinite(nodeResult.pressure)
                     ? `${formatNumberAR(nodeResult.pressure, 2)} kPa`
                     : '--'}
+                  {selectedNode.type === 'reservoir' && Number.isFinite(nodeResult.pressure) && (
+                    <Text component="span" size="xs" c="dimmed" ml={4}>
+                      ({formatNumberAR(nodeResult.pressure / 98.1, 2)} bar)
+                    </Text>
+                  )}
                 </Text>
               </Group>
 
@@ -95,6 +100,18 @@ export function ElementTooltip({
                   </Text>
                   <Text size="xs" c="dark.7" style={{ fontFamily: 'monospace' }}>
                     {formatNumberAR(nodeResult.head, 2)} m
+                  </Text>
+                </Group>
+              )}
+
+              {selectedNode.type === 'reservoir' && Number.isFinite(nodeResult.demand) && (
+                <Group gap="xs">
+                  <IconDroplet size={16} style={{ color: '#06b6d4' }} />
+                  <Text size="xs" fw={600} c="dark.7">
+                    Caudal entregado:
+                  </Text>
+                  <Text size="xs" c="dark.8" fw={500} style={{ fontFamily: 'monospace' }}>
+                    {formatNumberAR(Math.abs(nodeResult.demand), 3)} L/s
                   </Text>
                 </Group>
               )}

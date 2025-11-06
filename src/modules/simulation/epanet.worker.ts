@@ -100,9 +100,17 @@ const runSimulation = (
       const currentTime = project.runH();
 
       const nodesResults = nodeMeta.map(({ node, index }) => {
-        const pressure = project.getNodeValue(index, NodeProperty.Pressure);
-        const demand = project.getNodeValue(index, NodeProperty.Demand);
         const head = project.getNodeValue(index, NodeProperty.Head);
+        const demand = project.getNodeValue(index, NodeProperty.Demand);
+        
+        // Para reservorios, calcular presión de suministro manualmente
+        // EPANET retorna 0 porque son nodos de referencia
+        let pressure: number;
+        if (node.type === 'reservoir') {
+          pressure = head * 9.81; // Convertir metros a kPa
+        } else {
+          pressure = project.getNodeValue(index, NodeProperty.Pressure);
+        }
 
         updateRange(pressureRange, pressure);
 

@@ -5,6 +5,10 @@ import { useSimulationRanges, useFloatingPanels, useFloatingPanelsActions } from
 import { computeLegendStops } from '../simulation/simulationVisualMapping';
 import { DraggableFloatingPanel } from './DraggableFloatingPanel';
 
+interface SimulationLegendProps {
+  containerWidth?: number;
+}
+
 // Formato de número argentino: punto para miles, coma para decimales
 const formatNumberAR = (value: number, decimals: number = 2): string => {
   const fixed = value.toFixed(decimals);
@@ -13,7 +17,10 @@ const formatNumberAR = (value: number, decimals: number = 2): string => {
   return decimal ? `${formattedInteger},${decimal}` : formattedInteger;
 };
 
-export function SimulationLegend() {
+const PANEL_WIDTH = 260;
+const PANEL_MARGIN = 16;
+
+export function SimulationLegend({ containerWidth }: SimulationLegendProps) {
   const simulationRanges = useSimulationRanges();
   const { isLegendVisible, legendPosition } = useFloatingPanels();
   const { toggleLegendPanel, setLegendPosition } = useFloatingPanelsActions();
@@ -24,9 +31,14 @@ export function SimulationLegend() {
     return null;
   }
 
-  // Generar escalas de color para flujo y presión
+  // Generar escalas de color para flujo y presion
   const flowStops = computeLegendStops(simulationRanges, 'flow', 5);
   const pressureStops = computeLegendStops(simulationRanges, 'pressure', 5);
+
+  const availableWidth =
+    containerWidth ??
+    (typeof window !== 'undefined' ? window.innerWidth : PANEL_WIDTH + PANEL_MARGIN * 2);
+  const defaultX = Math.max(PANEL_MARGIN, availableWidth - PANEL_WIDTH - PANEL_MARGIN);
 
   return (
     <DraggableFloatingPanel
@@ -35,8 +47,8 @@ export function SimulationLegend() {
       isVisible={isLegendVisible}
       onClose={toggleLegendPanel}
       onPositionChange={setLegendPosition}
-      defaultPosition={{ x: window.innerWidth - 276, y: 16 }}
-      width={260}
+      defaultPosition={{ x: defaultX, y: PANEL_MARGIN }}
+      width={PANEL_WIDTH}
       zIndex={100}
     >
       <Box>

@@ -56,6 +56,9 @@ export function CriticalAlertsPanel({
       const node = nodes.find((n) => n.id === nodeResult.id);
       if (!node) return;
 
+      // Los reservorios no generan alertas de presión (es su configuración intencional)
+      if (node.type === 'reservoir') return;
+
       const style = computeNodeVisualStyle(nodeResult, simulationRanges, {
         metric: typeof nodeResult.tankLevel === 'number' ? 'tankLevel' : 'pressure',
         highlightIssues: true,
